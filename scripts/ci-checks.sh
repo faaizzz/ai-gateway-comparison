@@ -29,7 +29,8 @@ for f in "${compose_files[@]}"; do
   else
     args=(-f "$BASE" -f "$f")
   fi
-  if docker compose "${args[@]}" config -q; then
+  # --profile '*' so services behind profiles (tools, obs) are validated too
+  if docker compose "${args[@]}" --profile '*' config -q; then
     echo "ok   $f"
   else
     echo "FAIL $f"

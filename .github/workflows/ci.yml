@@ -16,3 +16,15 @@ jobs:
       # docker compose config on every compose file, shellcheck on scripts/*.sh,
       # ruff on Python. Linters run in containers. Same script as `make lint`.
       - run: ./scripts/ci-checks.sh
+
+  # Builds the mock and the custom k6 image and runs the base stack end to end:
+  # mock healthy, k6 plain + SSE request, sampler CSV.
+  base-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: make k6-build
+      - run: make base-smoke
+      - if: always()
+        run: make base-down
