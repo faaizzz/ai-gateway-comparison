@@ -1,0 +1,10 @@
+mock-llm is derived from the mock upstream of AIGatewayBench.
+
+  Source repo:  https://github.com/BerriAI/ai-gateway-bench
+  Source path:  crates/mock-upstream (plus the workspace Cargo.lock, pruned to this crate)
+  Commit:       35ba690a53e9c7bea86d13dc077921b0faf02d97
+  Licence:      MIT, Copyright (c) 2026 Berri AI (full text in ./LICENSE)
+
+The first commit that added these files holds the upstream source unmodified
+(except for the pruned Cargo.lock). Later commits in this repo add fault knobs,
+usage reporting, extra routes and a Dockerfile; see `git log -- mock-llm`.
