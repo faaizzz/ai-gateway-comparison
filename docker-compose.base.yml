@@ -1,0 +1,12 @@
+# Base compose file. Placeholder from story #1; story #3 adds the mock upstream,
+# k6 runner, resource sampling and observability services.
+#
+# Shared conventions (see docs/benchmark-contract.md):
+#   - network: gwbench
+#   - mock upstream: hostname mock-llm, port 9000
+#   - gateway container limit: 2 CPU / 2 GB
+name: gwbench
+
+networks:
+  gwbench:
+    name: gwbench
