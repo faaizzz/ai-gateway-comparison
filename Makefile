@@ -4,17 +4,24 @@
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-11s %s\n", $$1, $$2}'
 
-up: ## Start the base stack and one gateway (placeholder, story #4)
-	@echo "not implemented yet (story #4)"
+# Runner variables: TARGET (direct, litellm, bifrost, langfuse), SCENARIO (s1, s1-ramp, ...),
+# and optionally PROFILE, REPEAT, DURATION (s per step), RATE (rps, or a comma list), WARMUP (s),
+# RAW=1 (per-request JSON). Example: make run TARGET=direct SCENARIO=s1 REPEAT=3
+RUN_FLAGS = $(if $(PROFILE),--profile $(PROFILE)) $(if $(REPEAT),--repeat $(REPEAT)) \
+  $(if $(DURATION),--duration $(DURATION)) $(if $(RATE),--rate $(RATE)) $(if $(WARMUP),--warmup $(WARMUP)) \
+  $(if $(RAW),--raw) $(if $(KEEP),--keep)
 
-down: ## Stop everything and remove volumes (placeholder, story #4)
-	@echo "not implemented yet (story #4)"
+up: ## Start the mock and a target's stack: make up TARGET=litellm [PROFILE=prod]
+	./scripts/stack.sh up $(TARGET) $(if $(PROFILE),--profile $(PROFILE))
 
-smoke: ## Quick check that a gateway answers through to the mock (placeholder, stories #5-#7)
-	@echo "not implemented yet (stories #5-#7)"
+down: ## Remove the mock and any gateway stack, with volumes
+	./scripts/stack.sh down $(TARGET) $(if $(PROFILE),--profile $(PROFILE))
 
-run: ## Run a scenario against a gateway (placeholder, story #4)
-	@echo "not implemented yet (story #4)"
+smoke: ## Smoke request (and mode check) against an up target: make smoke TARGET=litellm
+	./scripts/stack.sh smoke $(TARGET) $(if $(PROFILE),--profile $(PROFILE))
+
+run: ## Run a scenario end to end: make run TARGET=direct SCENARIO=s1 [PROFILE REPEAT DURATION RATE WARMUP RAW]
+	./scripts/run.sh $(TARGET) $(SCENARIO) $(RUN_FLAGS)
 
 base-up: ## Start the mock upstream and wait until it is healthy
 	docker compose -f docker-compose.base.yml up -d --wait mock-llm
