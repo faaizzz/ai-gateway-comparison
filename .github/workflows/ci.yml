@@ -1,0 +1,18 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # docker compose config on every compose file, shellcheck on scripts/*.sh,
+      # ruff on Python. Linters run in containers. Same script as `make lint`.
+      - run: ./scripts/ci-checks.sh
