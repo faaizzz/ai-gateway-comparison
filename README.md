@@ -18,7 +18,7 @@ Work is tracked in the GitHub Project and the issues of this repo. Every run pub
 | ---- | ------- |
 | `docker-compose.base.yml` | Shared network (`gwbench`), mock upstream, k6, sampling (filled in by later stories) |
 | `gateways/{litellm,bifrost,langfuse}/` | One compose overlay and config per gateway stack |
-| `mock-llm/` | Deterministic mock upstream (hostname `mock-llm`, port `9000`) |
+| `mock-llm/` | Deterministic mock upstream (hostname `mock-llm`, port `9000`), see [mock-llm/README.md](mock-llm/README.md) |
 | `k6/lib/`, `k6/scenarios/` | Shared k6 helpers and the S1-S10 scenarios |
 | `scripts/` | Runner and helper scripts |
 | `results/` | Run output (raw data is git-ignored) |
