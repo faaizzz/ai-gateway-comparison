@@ -1,12 +1,155 @@
-# Base compose file. Placeholder from story #1; story #3 adds the mock upstream,
-# k6 runner, resource sampling and observability services.
+# Base compose file: the shared pieces every gateway stack plugs into.
 #
-# Shared conventions (see docs/benchmark-contract.md):
-#   - network: gwbench
-#   - mock upstream: hostname mock-llm, port 9000
-#   - gateway container limit: 2 CPU / 2 GB
+#   always up    mock-llm     deterministic mock upstream (container gwbench-mock-llm)
+#   tools        k6           k6 + xk6-sse, run one-off with `docker compose run`
+#                sampler      per-container CPU/memory CSV, run one-off
+#   --profile obs  cadvisor, prometheus, grafana   optional, off by default
+#
+# Gateway stacks are overlays: `-f docker-compose.base.yml -f gateways/<x>/...`.
+# Conventions (see docs/benchmark-contract.md and docs/decisions.md D6):
+#   - network: gwbench. Mock hostname mock-llm, port 9000.
+#   - containers are named gwbench-<service> so scripts and the sampler can find
+#     them. Gateway overlays should follow this (gateway container limit 2 CPU / 2 GB).
+#   - every image is pinned by version tag.
+#
+# Commands: `make help`, and the README section "Base stack".
 name: gwbench
 
 networks:
   gwbench:
     name: gwbench
+
+services:
+  mock-llm:
+    build:
+      context: ./mock-llm
+    image: gwbench/mock-llm:0.1.0
+    container_name: gwbench-mock-llm
+    hostname: mock-llm
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 512m
+    memswap_limit: 512m # no swap, so the memory limit is real
+    ports:
+      # Loopback only, for `curl` from the host. Change with MOCK_HOST_PORT.
+      - "127.0.0.1:${MOCK_HOST_PORT:-19000}:9000"
+    environment:
+      # Defaults are the contract baseline (docs/benchmark-contract.md); the
+      # runner records the values it uses in run metadata. Empty means unset.
+      MOCK_LATENCY_MS: ${MOCK_LATENCY_MS:-60}
+      MOCK_TTFT_MS: ${MOCK_TTFT_MS:-20}
+      MOCK_ITL_MS: ${MOCK_ITL_MS:-5}
+      MOCK_OUTPUT_TOKENS: ${MOCK_OUTPUT_TOKENS:-40}
+      MOCK_FAIL_STATUS: ${MOCK_FAIL_STATUS:-}
+      MOCK_FAIL_RATE: ${MOCK_FAIL_RATE:-}
+      MOCK_429_RATE: ${MOCK_429_RATE:-}
+      MOCK_RETRY_AFTER_S: ${MOCK_RETRY_AFTER_S:-}
+      MOCK_WORKER_THREADS: ${MOCK_WORKER_THREADS:-8}
+    healthcheck:
+      test: ["CMD", "mock-upstream", "--healthcheck"]
+      interval: 2s
+      timeout: 3s
+      start_period: 1s
+      retries: 15
+    restart: "no"
+
+  # k6 with the xk6-sse extension. Not started by `up`; run it one-off:
+  #   docker compose -f docker-compose.base.yml run --rm k6 run /k6/smoke.js
+  # ./k6 is mounted read-only at /k6 (scripts, lib), ./results at /results.
+  k6:
+    build:
+      context: ./k6
+    image: gwbench/k6:2.3.0-sse0.2.0
+    profiles: ["tools"]
+    networks:
+      - gwbench
+    working_dir: /k6
+    volumes:
+      - ./k6:/k6:ro
+      - ./results:/results
+    environment:
+      K6_NO_USAGE_REPORT: "true"
+      # Only used with `--out experimental-prometheus-rw` (obs profile).
+      K6_PROMETHEUS_RW_SERVER_URL: ${K6_PROMETHEUS_RW_SERVER_URL:-http://gwbench-prometheus:9090/api/v1/write}
+      K6_PROMETHEUS_RW_TREND_STATS: ${K6_PROMETHEUS_RW_TREND_STATS:-p(50),p(95),p(99),avg,max}
+      K6_PROMETHEUS_RW_PUSH_INTERVAL: ${K6_PROMETHEUS_RW_PUSH_INTERVAL:-2s}
+
+  # Resource sampler, see scripts/sampler.py and scripts/sampler.sh. It needs the
+  # Docker socket to read container stats.
+  sampler:
+    image: python:3.13.9-alpine3.22
+    profiles: ["tools"]
+    networks:
+      - gwbench
+    entrypoint: ["python3", "-B", "/scripts/sampler.py"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./scripts/sampler.py:/scripts/sampler.py:ro
+      - ./results:/results
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ---- optional observability: docker compose --profile obs up -d ----------
+  # Small limits; it shares the VM with the system under test, so leave it off
+  # for headline runs.
+  # cAdvisor needs privileged mode and the Docker socket to label containers by
+  # name on Docker Desktop (decision D6). Prometheus has the remote-write
+  # receiver on, so k6 can push with `--out experimental-prometheus-rw`.
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.4
+    container_name: gwbench-cadvisor
+    profiles: ["obs"]
+    networks:
+      - gwbench
+    privileged: true
+    mem_limit: 512m
+    memswap_limit: 512m
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=2s
+      - --enable_metrics=cpu,memory,network
+      - --store_container_labels=false
+    volumes:
+      - /:/rootfs:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    container_name: gwbench-prometheus
+    profiles: ["obs"]
+    networks:
+      - gwbench
+    mem_limit: 512m
+    memswap_limit: 512m
+    ports:
+      - "127.0.0.1:${PROMETHEUS_HOST_PORT:-19090}:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      - --storage.tsdb.retention.time=1d
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:12.4.14
+    container_name: gwbench-grafana
+    profiles: ["obs"]
+    networks:
+      - gwbench
+    mem_limit: 512m
+    memswap_limit: 512m
+    ports:
+      - "127.0.0.1:${GRAFANA_HOST_PORT:-13000}:3000"
+    environment:
+      # Local, loopback-only, no secrets. Anonymous viewers see the dashboards.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro

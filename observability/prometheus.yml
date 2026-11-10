@@ -1,0 +1,15 @@
+# Prometheus for the optional obs profile. k6 pushes its metrics via remote
+# write (receiver enabled on the command line); this file only scrapes
+# container resources from cAdvisor and Prometheus itself.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: cadvisor
+    scrape_interval: 2s
+    static_configs:
+      - targets: ["gwbench-cadvisor:8080"]
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
