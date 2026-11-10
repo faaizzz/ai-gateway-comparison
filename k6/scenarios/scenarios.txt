@@ -1,0 +1,6 @@
+# Scenario table read by scripts/run.sh. One line per scenario:
+#   <id>  <k6 script in k6/scenarios/>  <description>
+# To add a scenario: drop the script in k6/scenarios/ and add a line here.
+# Then `make run TARGET=<t> SCENARIO=<id>` works. Lines starting with # are ignored.
+s1       s1_baseline.js  Baseline: direct to the mock at the rate ladder (open loop)
+s1-ramp  s1_ramp.js      Mock capacity check: direct to the mock at rising rates
