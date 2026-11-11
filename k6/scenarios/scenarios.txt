@@ -10,3 +10,9 @@ s4           s4_concurrency.js  Concurrency sweep: 1, 10, 100, 1000 virtual user
 s5           s5_payload.js      Payload sweep: request bodies of 1 KB, 10 KB and 100 KB at a fixed 100 RPS (open loop)
 s5-resp10k   s5_response.js     Response size: 100 RPS, mock answers about 10 KB; run with MOCK_OUTPUT_TOKENS=1700
 s5-resp100k  s5_response.js     Response size: 100 RPS, mock answers about 100 KB; run with MOCK_OUTPUT_TOKENS=17000
+s9           s9_soak.js         Soak: 100 RPS for 6 windows of 300 s (30 min), per-window p50/p99 and memory growth (open loop)
+s10          s10_max_rate.js    Max rate: extended ladder (--rate slice of MAX_RATE_LADDER), 30 s steps, until the first unsustained step (open loop)
+s6           fixed_rate.js      Tracing/logging on vs off: 100 RPS, one step; the profile (or LANGFUSE_INGESTION_MODE) is the variable (open loop)
+s7           fixed_rate.js      Auth, virtual key, budget, rate limit vs minimal: 100 RPS, one step; the profile is the variable (open loop)
+s8-fail      s8_faults.js       Faults: 100 RPS while the mock answers 5 % with 500; run with MOCK_FAIL_RATE=0.05 (open loop)
+s8-429       s8_faults.js       Faults: 100 RPS while the mock answers 5 % with 429 + Retry-After; run with MOCK_429_RATE=0.05 (open loop)

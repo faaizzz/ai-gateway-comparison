@@ -22,3 +22,12 @@ export const STREAM_RATES = [50, 100];
 // Request body sizes of S5 in bytes, and their step names.
 export const PAYLOAD_BYTES = [1024, 10240, 102400];
 export const PAYLOAD_NAMES = ['b1k', 'b10k', 'b100k'];
+
+// S10 max rate (D17, D26, D28): the superset ladder in requests per second. Each target runs the
+// slice around its own limit with `--rate`, always one or two steps past the first step it
+// cannot hold; the sustained verdict (scripts/sustained.py) stops at the first failing step.
+export const MAX_RATE_LADDER = [100, 200, 250, 300, 350, 400, 500, 750, 1000, 1250, 1500, 2000, 3000, 4000, 6000, 8000, 10000, 12000, 16000];
+
+// Soak (S9, D28): six windows of five minutes at one fixed rate, w1 to w6. Per-window
+// sub-metrics give the p99 drift over the 30 minutes.
+export const SOAK_WINDOWS = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'];
