@@ -46,3 +46,20 @@ jobs:
       - run: ./scripts/smoke.sh litellm ${{ matrix.profile }}
       - if: always()
         run: make base-down
+
+  # Bifrost stack, both profiles: stack up, non-streaming and streaming request,
+  # verify.sh (minimal: no config store, no log store, no logging plugin; prod: stores,
+  # logging, governance). Pulls the maximhq/bifrost image (about 290 MB).
+  bifrost-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [minimal, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - run: make k6-build
+      - run: ./scripts/smoke.sh bifrost ${{ matrix.profile }}
+      - if: always()
+        run: make base-down

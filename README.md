@@ -10,14 +10,14 @@ Work is tracked in the GitHub Project and the issues of this repo. Every run pub
 ## Rules and decisions
 
 - [docs/benchmark-contract.md](docs/benchmark-contract.md): the rules every run follows, and the scenario table S1-S10.
-- [docs/decisions.md](docs/decisions.md): decisions behind the setup (mock reuse, Langfuse allow-list, sampling, k6 build, rate ladder, durations, LiteLLM image and profiles).
+- [docs/decisions.md](docs/decisions.md): decisions behind the setup (mock reuse, Langfuse allow-list, sampling, k6 build, rate ladder, durations, LiteLLM image and profiles, Bifrost image, route and profiles).
 
 ## Layout
 
 | Path | Purpose |
 | ---- | ------- |
 | `docker-compose.base.yml` | Shared network (`gwbench`), mock upstream, k6, resource sampler, optional observability |
-| `gateways/<target>/` | One directory per target: `target.env`, compose overlay, config, optional `verify.sh`. `direct` is the baseline, `litellm` is in [gateways/litellm/](gateways/litellm/README.md). Contract in [gateways/README.md](gateways/README.md) |
+| `gateways/<target>/` | One directory per target: `target.env`, compose overlay, config, optional `verify.sh`. `direct` is the baseline, `litellm` is in [gateways/litellm/](gateways/litellm/README.md), `bifrost` in [gateways/bifrost/](gateways/bifrost/README.md). Contract in [gateways/README.md](gateways/README.md) |
 | `mock-llm/` | Deterministic mock upstream (hostname `mock-llm`, port `9000`), see [mock-llm/README.md](mock-llm/README.md) |
 | `k6/` | Custom k6 image (`Dockerfile`, with xk6-sse), `smoke.js`, `smoke_target.js`, shared helpers in `lib/`, scenarios and their table in `scenarios/` |
 | `observability/` | Prometheus and Grafana config for the optional `obs` profile |
@@ -37,6 +37,7 @@ make run TARGET=direct SCENARIO=s1-ramp             # mock capacity check, about
 make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=20 WARMUP=5   # quick end-to-end check
 make up TARGET=<gateway> PROFILE=prod; make smoke TARGET=<gateway>; make down   # by hand
 scripts/smoke.sh litellm prod                       # up, plain + streaming request, mode check, down
+scripts/smoke.sh bifrost minimal                    # same for Bifrost (log store verified off)
 ```
 
 `make run` calls `scripts/run.sh <target> <scenario> [--profile minimal|prod] [--repeat N] [--duration S] [--rate R[,R...]] [--warmup S] [--raw] [--keep]`. Per run it starts the mock and the target stack, waits for health, sends a smoke request and runs the target's `verify.sh`, starts the resource sampler, runs k6 (warm-up excluded), writes the metadata and tears the stack down. Defaults: 15 s warm-up and 60 s per step (S1 ramp: 10 s and 15 s), so S1 at the four-step ladder takes about 5 minutes. The decisions behind the durations and rates are in [docs/decisions.md](docs/decisions.md) (D8).
