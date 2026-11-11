@@ -12,8 +12,8 @@ Contract for targets: [gateways/README.md](../README.md).
 | Auth | master key (`sk-gwbench-master`) | virtual key (`sk-gwbench-virtual`), model `mock-gpt`, budget 1,000,000 USD |
 | Gateway limits | 2 CPU / 2 GB | 2 CPU / 2 GB; Postgres 1 CPU / 1 GB; Redis 1 CPU / 512 MB; setup 0.25 CPU / 128 MB |
 
-Image `ghcr.io/berriai/litellm:v1.109.0` (arm64, digest in D11). Workers: `LITELLM_WORKERS`
-(default 2). Log level: `LITELLM_LOG` (default `ERROR`). Model alias `mock-gpt`
+Image `ghcr.io/berriai/litellm:v1.109.0` (arm64, digest in D11). Server: Granian (`--run_granian`), workers `LITELLM_WORKERS`
+(default 2), both from the tuning pass (D25). Log level: `LITELLM_LOG` (default `ERROR`). Model alias `mock-gpt`
 (`openai/mock-upstream`, `api_base: http://mock-llm:9000/v1`). Base URL for k6:
 `http://litellm:4000/v1`. No port is published; use `docker exec gwbench-litellm ...`
 (the image has python, no curl).
@@ -43,6 +43,7 @@ as the k6 latency; do not subtract either from the other.
   builtin: use `CMD-SHELL` healthchecks with `[ ... ]`.
 - `docker compose up --wait` fails if any container exits, so the setup container idles.
 - LiteLLM's built-in hooks are always loaded; "no callbacks" means no logging or spend callback.
-- At the default 2 workers on 2 CPUs the proxy saturates between 100 and 250 requests per
-  second (minimal) or earlier (prod): the headline ladder (100 to 1000) goes past what
-  LiteLLM can hold. Whether to cap the ladder or tune is for story #8.
+- Tuned (D25): on Granian with 2 workers the proxy holds 300 requests per second (minimal),
+  against 250 on uvicorn. Above that it queues: the headline ladder (100 to 1000) goes past what
+  LiteLLM can hold, and D15 marks those steps saturated. More workers do not help on 2 CPUs, and
+  uvicorn cannot start 3 workers in 2 GB (OOM-killed).

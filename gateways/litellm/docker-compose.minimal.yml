@@ -1,7 +1,7 @@
 # LiteLLM, profile "minimal": the proxy alone, master key only. No database, no
 # Redis, no callbacks. Overlay on docker-compose.base.yml (gateways/README.md).
 #   Image: ghcr.io/berriai/litellm:v1.109.0 (decision D11 has the digest).
-#   Workers: LITELLM_WORKERS (default 2; the tuning pass, story #8, sets the final value).
+#   Workers: LITELLM_WORKERS (default 2) on Granian (--run_granian); both set by the tuning pass, D25.
 services:
   litellm:
     image: ghcr.io/berriai/litellm:v1.109.0
@@ -20,6 +20,8 @@ services:
       - --host=0.0.0.0
       - --port=4000
       - --num_workers=${LITELLM_WORKERS:-2}
+      # Granian (Rust ASGI server) instead of uvicorn: tuning pass, decision D25.
+      - --run_granian
     environment:
       LITELLM_MASTER_KEY: sk-gwbench-master # local dummy value
       LITELLM_TELEMETRY: "False"

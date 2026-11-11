@@ -325,6 +325,13 @@ services:
       LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: ${LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST:-mock-llm}
       # warn: no line per request, like LITELLM_LOG=ERROR and Bifrost's error level.
       LANGFUSE_LOG_LEVEL: ${LANGFUSE_GATEWAY_LOG_LEVEL:-warn}
+      # Admission control (tuning pass, D25). Each request reserves max request bytes + overhead
+      # from the memory budget, so budget / (max + overhead) bounds the requests in flight
+      # (1221381323 / 17 MiB = 68 at these defaults). The defaults are the gateway's own: 60 % of
+      # the 2 GiB cgroup limit minus 64 MiB, 16 MiB, 1 MiB.
+      LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES: ${LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES:-1221381323}
+      LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES: ${LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES:-16777216}
+      LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES: ${LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES:-1048576}
     healthcheck:
       # Liveness, not /ready.
       test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8080/health"]

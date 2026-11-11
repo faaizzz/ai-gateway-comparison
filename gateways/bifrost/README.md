@@ -41,7 +41,7 @@ Prod asserts the opposite: both database files exist, `logs.db` grows during a b
 logs API lists the burst under the virtual key with Bifrost's own `overhead_latency`,
 governance refuses a missing or wrong key and charges the budget, `/metrics` answers.
 
-**Tuning knobs (defaults, in the configs; story #8 changes them).**
+**Tuning knobs (the tuning pass, D25, kept the defaults: no candidate beat them).**
 
 | Knob | Where | Value |
 | --- | --- | --- |

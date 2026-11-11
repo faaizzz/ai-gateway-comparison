@@ -48,6 +48,11 @@ python3 gateways/langfuse/d3.py           # D3: Web calls per gateway request, c
 Files: `target.env`, `compose.yml` (one file, both profiles), `setup.mjs` (headless setup),
 `clickhouse-low-memory.xml`, `verify.sh` + `verify.py`, `d3.py` + `d3_proxy.py` (D3 measurement).
 
+**Gateway tuning (D25).** `compose.yml` sets the gateway's admission-control knobs explicitly at
+their defaults (`LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES`, `..._MAX_REQUEST_BYTES`,
+`..._REQUEST_MEMORY_OVERHEAD_BYTES`); each can be overridden from the environment. The tuning pass
+found no better value: a smaller budget lowers the sustained rate, a larger one does not raise it.
+
 **Headless setup (`setup.mjs`, service `langfuse-setup`).** `LANGFUSE_INIT_*` on Web creates the
 organisation, project, project keys and owner user at first start. `setup.mjs` then does what
 the UI would: logs in as that user, sets the gateway config (ingestion project and mode) through

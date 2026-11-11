@@ -53,6 +53,8 @@ Each gateway gets one documented tuning pass (story #8) using its own
 guidance. The tuned values are recorded with every run. No further per-scenario
 tuning, so no gateway gets an unequal amount of effort.
 
+**Resolved by D25** (the tuning pass, with the ranking rule of D16 and D24).
+
 ## D6 - Resource sampling: Docker socket stats for CSV, cAdvisor for Grafana
 
 Tried cAdvisor (v0.60.4) first on Docker Desktop for Mac. It does give
@@ -163,7 +165,7 @@ the fallback if v1.109.0 turns out to have a regression; the digest is recorded 
 every run's `metadata.json`.
 
 **Workers: 2, from `LITELLM_WORKERS`** (`--num_workers`), matching the 2 CPUs of the
-gateway container. Not tuned: story #8 sets the final value and records it. Python
+gateway container (D25 kept 2 and also moved the server from uvicorn to Granian). Python
 workers are separate processes, so one worker cannot use two cores. `verify.sh`
 counts the worker processes to confirm the setting took effect.
 
@@ -650,3 +652,105 @@ against a 62 ms baseline. And two ladder runs of the same profile disagreed at 5
    step is reported and the disagreement is noted.
 3. **S10 repeats.** S10 runs 3 times per gateway and profile and reports the median
    highest sustained rate, with the range.
+
+## D25 - Tuning pass: LiteLLM on Granian, Bifrost and Langfuse unchanged (resolves D5)
+
+**Method (D16 + D24).** Gateway container 2 CPU / 2 GB, `minimal` profile, mock at
+`MOCK_LATENCY_MS=60`, one run per candidate on a fresh stack, 30 s per step after a 10 s
+warm-up, container limits never changed. `scripts/tune.sh <target> <label> -- VAR=value`
+runs a candidate and `scripts/sustained.py <run-dir>` applies the rules to its
+`summary.json`: a step is sustained if achieved >= 95 % of the target, errors < 0.1 %,
+k6 below 4 cores, p50 <= 2x the direct baseline p50 at that rate, and no container of the
+stack was OOM-killed or died. The highest sustained rate is the last step before the
+first one that fails. The helper is meant for S10 (D17) as well. Baselines: S1 direct at
+100 to 1000 RPS (D9) and, for the extended ladder, `results/2026-11-11/direct/none/s1-extended/`
+(1500 to 8000 RPS, 30 s steps; p50 61.4 to 61.9 ms everywhere; the first of the two runs
+only reached 5719 of 6000 RPS at its 6000 step, the second held 6000, 7000 and 8000 with
+k6 at about 2.5 cores, so that miss was noise, not a limit). The boundary of each winner was
+confirmed in a second run (D24). Rates between the official ladder steps (150, 200, 300,
+350, 750, 1250, ...) were added where a gateway breaks between two of them. Raw scratch
+runs are not committed; the tables below are the record.
+
+**LiteLLM** (ladder 100 to 750, p50 / p99 in ms at the highest sustained step):
+
+| Candidate | Highest sustained | p50 / p99 there | First failing step |
+| --- | --- | --- | --- |
+| uvicorn, 1 worker | 100 | 68.0 / 92.5 | 150: 17 % errors (timeouts) |
+| uvicorn, 2 workers (the old default) | 250 | 95.5 / 248.6 | 300: p50 251 |
+| uvicorn, 3 workers | none | OOM-killed at start | exit 137, 1.5 GiB reached 9 s after start |
+| uvicorn, 5 workers | none | OOM-killed at start | same |
+| gunicorn (`--run_gunicorn`), 2 workers | 250 | 101.3 / 176.8 | 300: p50 207 |
+| **Granian (`--run_granian`), 2 workers** | **300** | 116.3 / 191.5 (confirmation run: 92.7 / 199.8) | 350: p50 203 (confirmation) / 400 (first run) |
+| Granian, 3 workers | 250 | 74.4 / 271.7 | 300: p50 145 |
+| Granian, 5 workers | 250 | 69.6 / 149.0 | 300: rate 84 %, p50 1865 |
+| Granian, 1 worker, 2 runtime threads | 150 | 75.4 / 108.4 | 200: queueing |
+
+Chosen: **`--run_granian --num_workers=2`**, in both overlays (`LITELLM_WORKERS` still
+overrides the count). It has the highest sustained rate (300, 2 of 2 runs; the other
+settings sustain 250 at best, so no tie-break was needed). The step above it is not
+sustained in either run. Two more things the table shows. First, more workers do not
+help: the container has 2 CPUs and LiteLLM's CPU reads 200 % from 300 RPS on. Second,
+memory: uvicorn's spawned workers peaked at 1.88 GiB of the 2 GiB limit with 2 workers and
+cannot start 3 within the limit, while Granian and gunicorn peak at about 0.95 GiB
+(1.07 GiB with 3, 1.33 GiB with 5). So Granian is the only server for which worker counts
+above 2 could be tried at all. uvloop is already in use (uvicorn picks it when installed, and
+it is in the image). The gunicorn and Granian rows used `--no-verify` (the worker check
+counts spawn children); `verify.sh` now checks `--run_granian` and one child per worker
+under the main process. D11's "workers: 2" still stands; the server is what changed.
+The `prod` profile uses the same flags.
+
+**Bifrost** (ladder 1000 to 8000; settings are `concurrency / buffer_size / initial_pool_size`):
+
+| Candidate | Highest sustained | p99 at 3000 / 4000 / 5000 / 6000 | Notes |
+| --- | --- | --- | --- |
+| **1000 / 5000 / 5000 (default)** | **>= 6000** (both runs that went that high), 8000 in one | 87 / 573 / 213 / n.a.; run 2: 75 / 80 / 88 / 91; run 3: n.a. / n.a. / 400 / 125 | run 3 also held 7000 (p99 154) and 8000 (p50 91, p99 271, 98.7 % of target) |
+| 250 / 1000 / 1000 | 3000 | 72 | 4000: p50 136 (queueing), 5000: 75 % of target |
+| 4000 / 6000 / 6000 | 6000 (one run; 5000 in two) | 123 / 99 / 166 / n.a.; run 2: 273 / 81 / 120 / 112 | |
+| default + `GOGC=400`, `GOMEMLIMIT=1800MiB` | 5000 (not run higher) | 88 / 416 / 213 | |
+
+Bifrost never saturated on the ladder; the limit seen is the small queue/pool (250 / 1000)
+which fails at 4000 RPS (4000 x 62 ms is about 250 requests in flight, so probably the worker count). Bifrost's CPU was 140 to
+184 % of its 2 cores at 5000 to 8000 and k6 used 1.8 to 2.4 cores, so the real limit is just
+above 8000, which is the top of D17's ladder. Default, the large setting and the GC setting tie
+on the primary rule (all sustain 5000 or more); the tie-break by p99 is inside the run-to-run
+noise (the default alone gave 213, 88 and 400 ms at 5000 in three runs; the large setting gave
+166 and 120), so the rule cannot separate them. Chosen: **no change, the defaults (1000 /
+5000 / 5000, `GOGC` and `GOMEMLIMIT` unset)**, which
+`verify.sh` already asserts. GC settings did not help. Not tried: `network_config.max_conns_per_host`
+(default 5000, far above the ~250 connections in use).
+
+**Langfuse AI Gateway** (ladder 500 to 2000; Web, worker and stores untouched):
+
+The gateway admits a request only after reserving `MAX_REQUEST_BYTES` (16 MiB) plus
+`REQUEST_MEMORY_OVERHEAD_BYTES` (1 MiB) from `MEMORY_BUDGET_BYTES`, which defaults to 60 % of
+the cgroup limit minus 64 MiB (1,221,381,323 bytes in a 2 GiB container). That is about 68
+requests in flight, or roughly 1000 RPS at 62 ms: the same order as where the stack breaks.
+
+| Candidate | Highest sustained | p50 / p99 there | First failing step |
+| --- | --- | --- | --- |
+| **budget 1,221,381,323 (default)** | **1000** (2 of 2: 989 and 985 RPS) | 66.7 / 517 and 65.7 / 598 | 1250: 19.5 % errors; 1100: 3.75 % errors |
+| budget 1800 MiB (106 in flight) | 1000 | 70.8 / 519 | 1250: 27.6 % errors |
+| budget 512 MiB (31 in flight) | 750 | 64.3 / 429 | 1000: 6.4 % errors |
+| max request 1 MiB (default budget) | 1000 | 85.7 / 744 | 1250: 45.6 % errors |
+
+A larger budget does not move the limit (1250 fails with 20 to 45 % errors either way, with Web
+at 115 to 145 % CPU and the gateway at 120 to 170 %), a smaller one lowers it, and a smaller
+max request size is no better and would cap the request size for the S5 payload sweep. Chosen: **the defaults, now
+written explicitly** in `compose.yml` (`LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES`,
+`..._MAX_REQUEST_BYTES`, `..._REQUEST_MEMORY_OVERHEAD_BYTES`, each overridable). Web and worker:
+no setting touched. Nothing Langfuse documents for them changes the CPU of the one Node process
+(`NODE_OPTIONS` heap is not the limit: Web peaked at 1.0 GiB of its 1.25 GiB), and a second Web
+replica would change the topology and the stack's resource total; it is left as a possible
+later "scaled" variant, not part of this pass. The errors above the boundary were not
+classified by cause (admission rejections, Web or gateway timeouts). No container was OOM-killed
+in any candidate; the stack's summed memory peak was 2.4 to 2.8 GiB. The `prod` profile reuses
+these values (ingestion mode only), and D23's wider prod variation (saturation between 250 and
+1000) still applies; prod was not re-tuned.
+
+**Summary of the frozen values.** LiteLLM: Granian, 2 workers. Bifrost: defaults. Langfuse:
+defaults. For S2 to S5 the equal-rate ladder 100, 250, 500, 1000 therefore has a different
+meaning per gateway: LiteLLM holds 100 and 250 only (300 is its limit), Langfuse holds all four
+steps in minimal (1000 at the edge), Bifrost holds all four with room to spare. For S10 (D17):
+LiteLLM stops at about 300, Langfuse at about 1000, and Bifrost is still sustained at 8000, the
+top of D17's ladder, so S10 needs 10,000 and 12,000 for Bifrost (direct held 8000 with k6 at
+about 2.5 cores and 20,000 in D8) or the result is reported as "at least 8000".

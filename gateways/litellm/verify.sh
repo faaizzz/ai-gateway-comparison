@@ -96,8 +96,14 @@ echo "  loaded callback classes: $cbs"
 check "no Langfuse, OTel, Prometheus or other logging callback is loaded" \
   bash -c "! printf '%s' '$cbs' | grep -Eiq 'langfuse|otel|opentelemetry|prometheus|datadog|s3logger|gcs_bucket|custom_logger|webhook'"
 
-procs="$(docker exec "$GW" sh -c 'ps -eo args' | grep -c 'multiprocessing.spawn' || true)"
+# Granian (--run_granian, D25) starts one child process per worker under the main process (PID 1).
+case "$args" in
+  *--run_granian*) ok "server is Granian (--run_granian)" ;;
+  *) bad "--run_granian missing from the gateway command: $args" ;;
+esac
+procs="$(docker exec "$GW" sh -c 'ps -eo ppid,args' | awk '$1 == 1' | grep -c 'litellm' || true)"
 want="${args##*--num_workers=}"
+want="${want%% *}"
 check "$want worker process(es) are running (found $procs)" test "$procs" -eq "$want"
 
 # ---- minimal --------------------------------------------------------------
