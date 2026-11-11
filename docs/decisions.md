@@ -365,3 +365,84 @@ Gateway CPU is the mean over the step, 100 % = one of its two cores. So the ladd
 (100 to 1000) does not reach Bifrost's limit in either profile; S10 has to find it with
 higher rates, and the k6 load generator (about 0.5 core at 1000 RPS) gets closer to its own
 limit than the gateway does.
+
+## D15 - Saturated steps: same ladder for everyone, marked, not compared
+
+Every gateway runs the same ladder (D8), even when it cannot hold the top steps
+(LiteLLM with 2 workers saturates between 100 and 250 requests per second, see D11).
+The ladder is not capped per gateway, because a cap would hide where each gateway
+breaks.
+
+A step counts as **sustained** when all three hold:
+- the achieved request rate is at least 95 % of the target rate,
+- the error rate is below 0.1 %,
+- the k6 load generator is not the limit (its CPU is recorded with the step).
+
+Steps that are not sustained stay in the results and are marked **saturated**,
+with their achieved rate and error rate. Their latency is not used in the
+side-by-side latency tables: latency at saturation measures queueing in front of
+the gateway, not the gateway's per-request cost. The report shows, for each
+gateway and profile, the highest sustained ladder step next to the latency table.
+
+## D16 - Tuning rule for story #8 (refines D5)
+
+D5 said to pick the lowest p99 at 500 requests per second. That cannot rank
+settings for a gateway that saturates below 500, so the rule is:
+
+1. Fixed: 2 CPU / 2 GB per gateway container, `minimal` profile, mock at
+   `MOCK_LATENCY_MS=60`. The `prod` profile reuses the chosen values.
+2. For each candidate setting, find the **highest sustained rate** (D15) on the
+   ladder, extended past 1000 (1500, 2000, 3000, ...) for gateways that hold 1000.
+3. Pick the setting with the highest sustained rate. Break ties with the lowest
+   p99 at the highest rate that every candidate sustains.
+4. Short runs: 1 repeat, 30 s per step, 10 s warm-up, written to a scratch date
+   and summarised in the decision entry (raw scratch folders are not committed).
+
+Tuning stays within each gateway's documented knobs (LiteLLM workers, Bifrost
+concurrency/buffer/pool and Go GC settings, the Langfuse gateway's memory budget and
+documented performance settings). The gateway container limit is never changed.
+
+## D17 - S10 max rate
+
+S10 extends the ladder per gateway (1000, 1500, 2000, 3000, 4000, 6000, 8000) and
+stops at the first step that is not sustained (D15). The result is the highest
+sustained rate, with p50/p99 and gateway CPU and memory at that step. If k6 uses more
+than 4 cores at a step, the step is marked load-generator bound and the result is
+reported as "at least" that rate. S10 numbers are reported separately from the
+equal-rate headline tables (contract rule 8).
+
+## D18 - Overhead numbers: primary and secondary
+
+- **Primary:** the client-side (k6) latency distributions of the gateway and the
+  direct baseline at the same rate, side by side (p50, p95, p99), per contract
+  rule 3. This is the only number compared across gateways.
+- **Secondary:** gateway-reported overhead, in its own labelled column with its
+  definition. The definitions differ: LiteLLM reports time inside the proxy
+  (including its own queueing), and Bifrost's figure is the k6 duration minus
+  `x-bifrost-upstream-latency-ms`, so it includes the network hops. Gateway-reported
+  numbers are never ranked against each other.
+
+## D19 - Price parity for the mock model
+
+Every gateway is given the same price for the mock model in local config:
+1 USD per million input tokens and 2 USD per million output tokens. Prices are not
+fetched from the internet at runtime. This makes every `prod` profile do the same
+cost arithmetic, and keeps runs independent of external sites. (Bifrost exits at
+start if its online pricing download fails, so it uses a local datasheet, D13.)
+
+## D20 - Run hygiene and local checks
+
+- **Quiet Docker VM.** Measured runs happen with only `gwbench-*` containers
+  running. Unrelated containers are stopped beforehand (the owner approved stopping
+  an unrelated compose project on 2026-11-11), and run metadata records any other
+  running containers so a noisy run can be spotted.
+- **Scratch runs stay out of committed results.** Short and scratch runs go to a
+  scratch date (`scripts/run.sh --date <name>`) and are deleted. Issue #19 fixes
+  `make run` ignoring `DATE=` and records non-`gwbench` containers in metadata.
+- **Checks run locally.** GitHub Actions was turned off by the owner on 2026-11-11.
+  Before each push: `make lint`, `make base-smoke`, and `scripts/smoke.sh <gateway>
+  <profile>` for each gateway touched. The workflow file stays in the repo, so CI can
+  be turned on again with `gh workflow enable ci`.
+- **Latest stable versions.** Each gateway uses its latest stable release on the
+  day it was added (so Bifrost v2.5.1, not the v1.6.4 that AIGatewayBench used).
+  Comparisons with published benchmarks name both versions.
