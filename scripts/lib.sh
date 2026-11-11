@@ -91,6 +91,10 @@ gw_load() {
 
   # Visible to compose interpolation in overlays.
   export GWBENCH_TARGET="$TARGET" GWBENCH_PROFILE="$PROFILE"
+  # k6 runs as the caller, so it can write results/ on Linux hosts (see the k6 service).
+  GWBENCH_UID="$(id -u)"
+  GWBENCH_GID="$(id -g)"
+  export GWBENCH_UID GWBENCH_GID
 }
 
 compose() { (cd "$REPO_ROOT" && docker compose "${COMPOSE_ARGS[@]}" "$@"); }

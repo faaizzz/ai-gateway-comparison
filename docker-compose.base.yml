@@ -64,6 +64,10 @@ services:
     profiles: ["tools"]
     networks:
       - gwbench
+    # Run as the caller so files written under ./results are owned by them (on
+    # Linux the default k6 user cannot write to the bind mount). scripts/lib.sh
+    # exports the ids; root is the fallback, e.g. for a hand-run `docker compose run`.
+    user: "${GWBENCH_UID:-0}:${GWBENCH_GID:-0}"
     working_dir: /k6
     volumes:
       - ./k6:/k6:ro
