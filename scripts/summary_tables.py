@@ -171,18 +171,43 @@ def collect(date_dir, scenario, profile):
 
 
 def judge(step, base_p50, closed=False):
+    """Why a step fails the sustained rules, as (kind, value) pairs; empty if it holds."""
     why = []
     if step.get("no_data"):
-        return ["no data"]
+        return [("nodata", 0)]
     if not closed and step["achieved"] < MIN_ACHIEVED * step["rate"]:
-        why.append(f"rate {step['achieved'] / step['rate'] * 100:.0f}% of target")
+        why.append(("rate", step["achieved"] / step["rate"] * 100))
     if step["error"] >= MAX_ERROR:
-        why.append(f"errors {step['error'] * 100:.2f}%")
+        why.append(("errors", step["error"] * 100))
     if step["k6_cpu"] >= MAX_K6_CPU:
-        why.append(f"k6 bound ({step['k6_cpu']:.0f}% CPU)")
+        why.append(("k6", step["k6_cpu"]))
     if not closed and base_p50 is not None and step["p50"] > P50_FACTOR * base_p50:
-        why.append(f"p50 {step['p50']:.0f} ms > 2x baseline {base_p50:.1f}")
+        why.append(("p50", step["p50"]))
     return why
+
+
+def why_text(whys, base_p50=None):
+    """One sentence for all failing runs of a step: the worst value of each kind."""
+    worst = {}
+    for w in whys:
+        for kind, v in w:
+            if kind == "rate":
+                worst[kind] = min(worst.get(kind, v), v)
+            else:
+                worst[kind] = max(worst.get(kind, v), v)
+    parts = []
+    if "rate" in worst:
+        parts.append(f"achieved rate down to {worst['rate']:.0f}% of target")
+    if "errors" in worst:
+        parts.append(f"errors up to {worst['errors']:.2f}%")
+    if "p50" in worst:
+        lim = f" (limit 2 x {base_p50:.1f} = {2 * base_p50:.0f} ms)" if base_p50 else ""
+        parts.append(f"p50 up to {worst['p50']:.0f} ms{lim}")
+    if "k6" in worst:
+        parts.append(f"k6 at {worst['k6']:.0f}% CPU")
+    if "nodata" in worst:
+        parts.append("no data")
+    return ", ".join(parts)
 
 
 def med(vals):
@@ -261,7 +286,7 @@ class Report:
                 es = [s for run in entry["runs"] for s in run if s["name"] == n]
                 good = [e for e in es if not e.get("no_data")]
                 if not good:
-                    out[t]["steps"][n] = {"name": n, "n": 0, "no_data": True, "saturated": True, "why": ["no data"]}
+                    out[t]["steps"][n] = {"name": n, "n": 0, "no_data": True, "saturated": True, "why": "no data"}
                     continue
                 a = agg_step(good, n)
                 if scenario in ("s3",):
@@ -271,11 +296,18 @@ class Report:
                 else:
                     base = None
                 whys = [judge(e, base, closed) for e in good]
-                bad_runs = sum(1 for w in whys if w)
+                bad = [e for e, w in zip(good, whys) if w]
+                ok = [e for e, w in zip(good, whys) if not w]
                 a["baseline_p50"] = base
-                a["bad_runs"] = bad_runs
-                a["saturated"] = bad_runs > 0
-                a["why"] = sorted({x for w in whys for x in w})
+                a["bad_runs"] = len(bad)
+                a["saturated"] = len(bad) > 0
+                a["mixed"] = 0 < len(bad) < len(good)
+                a["why"] = why_text([w for w in whys if w], base)
+                if a["mixed"]:
+                    # numbers shown in the tables come from the runs that held; all runs stay in the JSON
+                    a["all_runs"] = a.copy()
+                    a.update(agg_step(ok, n))
+                    a["n_shown"] = len(ok)
                 out[t]["steps"][n] = a
         return out
 
@@ -284,8 +316,9 @@ class Report:
             return "no data"
         if not a["saturated"]:
             return "sustained"
-        mixed = f" ({a['bad_runs']} of {a['n']} runs)" if a["n"] > 1 and a["bad_runs"] < a["n"] else ""
-        return "SATURATED" + mixed
+        if a.get("mixed"):
+            return f"MIXED: saturated in {a['bad_runs']} of {a['bad_runs'] + a['n']} runs (latency from the {a['n']} that held)"
+        return "SATURATED"
 
     def table_open_loop(self, j, step_names, step_title):
         for n in step_names:
@@ -302,7 +335,7 @@ class Report:
                 if a.get("no_data"):
                     self.w(f"| {t} | {j[t]['n_runs']} | no data | | | | | | | | | | |")
                     continue
-                sat = a["saturated"]
+                sat = a["saturated"] and not a.get("mixed")
                 lat = lambda k: "sat." if sat else cell(a, k)  # noqa: E731
                 self.w(
                     f"| {t} | {a['n']} | {self.label(a)} | {a['achieved']:.0f} | {a['error'] * 100:.2f} | {lat('p50')} | {lat('p95')} | {lat('p99')} | "
@@ -310,9 +343,9 @@ class Report:
                     f"{'sat.' if sat else overhead_cell(a)} |"
                 )
             self.w()
-            reasons = [f"{t}: {', '.join(j[t]['steps'][n]['why'])}" for t in TARGETS if t in j and n in j[t]["steps"] and j[t]["steps"][n].get("why")]
+            reasons = [f"{t}: {j[t]['steps'][n]['why']}" for t in TARGETS if t in j and n in j[t]["steps"] and j[t]["steps"][n].get("why")]
             if reasons:
-                self.w("Saturated because: " + "; ".join(reasons) + ".")
+                self.w("Not sustained (D15, D24): " + "; ".join(reasons) + ".")
                 self.w()
 
     def highest_sustained(self, j, step_names):
@@ -395,7 +428,7 @@ class Report:
                 if a.get("no_data"):
                     self.w(f"| {t} | {j[t]['n_runs']} | no data |" + " |" * 16)
                     continue
-                sat = a["saturated"]
+                sat = a["saturated"] and not a.get("mixed")
                 lat = lambda k: "sat." if sat else cell(a, k)  # noqa: E731
                 chunks = "-" if a.get("chunks_min") is None else (f"{a['chunks_min']:.0f}" if a["chunks_min"] == a["chunks_max"] else f"{a['chunks_min']:.0f}-{a['chunks_max']:.0f}")
                 self.w(
@@ -404,9 +437,9 @@ class Report:
                     f"{fmt((a.get('stream_usage') or 0) * 100, 1) if a.get('stream_usage') is not None else '-'} | {fmt(a.get('gw_cpu'), 0)} | {mb(a.get('gw_mem'))} | {fmt(a.get('stack_cpu'), 0)} | {mb(a.get('stack_mem'))} |"
                 )
             self.w()
-            reasons = [f"{t}: {', '.join(j[t]['steps'][n]['why'])}" for t in TARGETS if t in j and n in j[t]["steps"] and j[t]["steps"][n].get("why")]
+            reasons = [f"{t}: {j[t]['steps'][n]['why']}" for t in TARGETS if t in j and n in j[t]["steps"] and j[t]["steps"][n].get("why")]
             if reasons:
-                self.w("Saturated because: " + "; ".join(reasons) + ". Their latency columns are left out (D15).")
+                self.w("Not sustained (D15, D24): " + "; ".join(reasons) + ".")
                 self.w()
         self.w("All times in ms. Gateway-reported overhead is not recorded for streams.")
         self.w()
@@ -445,7 +478,7 @@ class Report:
                 if a.get("no_data"):
                     self.w(f"| {t} | {j[t]['n_runs']} | no data |" + " |" * 11)
                     continue
-                flags = "; ".join(a["why"]) if a["why"] else "-"
+                flags = a["why"] or "-"
                 self.w(
                     f"| {t} | {a['n']} | {flags} | {a['achieved']:.0f} | {a['error'] * 100:.2f} | {cell(a, 'p50')} | {cell(a, 'p95')} | {cell(a, 'p99')} | {fmt(a.get('max'), 0)} | "
                     f"{fmt(a.get('k6_cpu'), 0)} | {fmt(a.get('gw_cpu'), 0)} | {mb(a.get('gw_mem'))} | {fmt(a.get('stack_cpu'), 0)} | {mb(a.get('stack_mem'))} |"
