@@ -1,0 +1,48 @@
+# LiteLLM target
+
+LiteLLM proxy in front of the mock. Decisions: [D11 and D12](../../docs/decisions.md).
+Contract for targets: [gateways/README.md](../README.md).
+
+| | `minimal` | `prod` |
+| --- | --- | --- |
+| Containers | `gwbench-litellm` | `gwbench-litellm`, `-postgres`, `-redis`, `-setup` |
+| Database, Redis | none | Postgres 17.6, Redis 8.2.2 |
+| Spend tracking, spend logs | off | on (written to Postgres every 10 s) |
+| Callbacks (logging, tracing) | none | none yet (hook for the Langfuse callback in S6) |
+| Auth | master key (`sk-gwbench-master`) | virtual key (`sk-gwbench-virtual`), model `mock-gpt`, budget 1,000,000 USD |
+| Gateway limits | 2 CPU / 2 GB | 2 CPU / 2 GB; Postgres 1 CPU / 1 GB; Redis 1 CPU / 512 MB; setup 0.25 CPU / 128 MB |
+
+Image `ghcr.io/berriai/litellm:v1.109.0` (arm64, digest in D11). Workers: `LITELLM_WORKERS`
+(default 2). Log level: `LITELLM_LOG` (default `ERROR`). Model alias `mock-gpt`
+(`openai/mock-upstream`, `api_base: http://mock-llm:9000/v1`). Base URL for k6:
+`http://litellm:4000/v1`. No port is published; use `docker exec gwbench-litellm ...`
+(the image has python, no curl).
+
+```bash
+scripts/smoke.sh litellm minimal        # up, plain + streaming request, verify.sh, down
+scripts/smoke.sh litellm prod --keep    # leave it running for poking around
+make run TARGET=litellm SCENARIO=s1 PROFILE=prod RATE=100 DURATION=20 WARMUP=5
+LITELLM_WORKERS=4 make run TARGET=litellm SCENARIO=s1 PROFILE=minimal
+```
+
+Files: `target.env`, `docker-compose.minimal.yml`, `docker-compose.prod.yml`,
+`config.minimal.yaml`, `config.prod.yaml`, `setup-key.py` (creates the virtual key),
+`verify.sh` (checks that the profile is what it claims: no DB, Redis or logging
+callbacks in minimal; DB, Redis, a key with a budget and spend rising in prod;
+in both, a request answered by the mock with LiteLLM's headers, the worker count
+and the image).
+
+**Gateway-reported overhead.** Every response carries `x-litellm-overhead-duration-ms`.
+k6 records it as `gateway_overhead_ms` and `scripts/summarize.py` prints it per step,
+labelled as gateway-reported. It is LiteLLM's own measure and is not the same quantity
+as the k6 latency; do not subtract either from the other.
+
+**Gotchas**
+
+- `test` inside the LiteLLM image is the Python venv's `test` script, not the shell
+  builtin: use `CMD-SHELL` healthchecks with `[ ... ]`.
+- `docker compose up --wait` fails if any container exits, so the setup container idles.
+- LiteLLM's built-in hooks are always loaded; "no callbacks" means no logging or spend callback.
+- At the default 2 workers on 2 CPUs the proxy saturates between 100 and 250 requests per
+  second (minimal) or earlier (prod): the headline ladder (100 to 1000) goes past what
+  LiteLLM can hold. Whether to cap the ladder or tune is for story #8.
