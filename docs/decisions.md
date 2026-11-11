@@ -19,12 +19,28 @@ Langfuse Web container so the mock host (`mock-llm`) is accepted. Plain http is
 allowed unless `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` is set, so that variable must
 stay unset.
 
+**Result (story #7): confirmed for the gateway, with a caveat for Web.** The gateway
+blocks the mock without the allow-list (`blocked provider destination host="mock-llm"
+error=provider address is not allowed`, HTTP 502) and serves it with
+`LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST=mock-llm`, over plain http, with the cloud
+region unset. From the source, Web uses the allow-list only when it validates a connection that is being
+created or tested, not when it resolves a request (not tested with the Web side unset). But Web v4.78.0 refuses to create a connection
+with a custom base URL at all outside development, preview and staging builds, so the
+benchmark's connection is inserted into Postgres. Details in D22.
+
 ## D3 - Langfuse gateway calls Web per request
 
 The Langfuse gateway calls Langfuse Web on every request to resolve its
 configuration. Web caches this in Redis (60 s by default). The Langfuse stack
 (Web, Redis and the other stores) therefore counts towards the total resources
 reported under contract rule 1, and the cache TTL is recorded in run metadata.
+
+**Result (story #7): confirmed, and the cache is narrower than this says.** One gateway
+request is exactly one call to Web (`POST /api/internal/ai-gateway/v1/resolve`), with
+the cache on or off; traces add one batched call per few hundred requests. The cache
+saves Postgres work (about 2 transactions per request when off, none when on), not the
+call, and Web still decrypts the credential and signs an ingestion token on every
+resolve. Measurements in D23.
 
 ## D4 - LiteLLM Rust mode deferred
 
@@ -446,3 +462,165 @@ start if its online pricing download fails, so it uses a local datasheet, D13.)
 - **Latest stable versions.** Each gateway uses its latest stable release on the
   day it was added (so Bifrost v2.5.1, not the v1.6.4 that AIGatewayBench used).
   Comparisons with published benchmarks name both versions.
+
+## D21 - Langfuse stack: versions, services, limits, setup
+
+**Versions: Langfuse v4.78.0 for all three Langfuse images** (the issue text said "v3";
+the gateway only works with Web newer than 4.75.0, see the official compose file, so the
+v4 line is the one to run). Chosen on 2026-11-11 as the newest release (published
+2026-11-10); the AI gateway is in public beta since 2026-11-04. All multi-arch with a
+native arm64 manifest, nothing runs under emulation. Digests of the multi-arch indexes,
+recorded in every run's `metadata.json`:
+
+| Image | Digest |
+| --- | --- |
+| `langfuse/ai-gateway:4.78.0` | `sha256:a9d9af37968a2ff9dcdbc614fef9702fc6126a586abc1d6a869b326efa1c447f` |
+| `langfuse/langfuse:4.78.0` (Web) | `sha256:037188385ac6612d3494319fa060052da407b235502874c7ea79ade583c29002` |
+| `langfuse/langfuse-worker:4.78.0` | `sha256:175a32200b9908b283104e67b84d080381e841daa8ee6692f5bb26538df1a59e` |
+| `postgres:17.6-alpine3.22` | `sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94` |
+| `clickhouse/clickhouse-server:26.3.62.3` (the tag of the official compose file) | `sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a` |
+| `redis:8.2.2-alpine3.22` (the official file uses 7; same image as LiteLLM's Redis) | `sha256:59b6e694653476de2c992937ebe1c64182af4728e54bb49e9b7a6c26614d8933` |
+| `cgr.dev/chainguard/minio` (MinIO, as in the official file) | `sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a` |
+
+MinIO has no versioned free tag (Chainguard publishes `:latest` only; the Docker Hub and
+Quay MinIO images are gone), so it is pinned by digest. The fallbacks are v4.77.0 and
+v4.76.0 (both with arm64 gateway images).
+
+**Services and limits** (`gateways/langfuse/compose.yml`, one file for both profiles):
+gateway 2 CPU / 2 GB; Web 2 CPU / 1.25 GB; worker 1 CPU / 1 GB; Postgres 1 CPU / 512 MB;
+ClickHouse 2 CPU / 1.5 GB; Redis 1 CPU / 256 MB; MinIO 1 CPU / 384 MB; setup 0.5 CPU /
+256 MB. Limits add up to 6.9 GB on paper; measured use is far lower (D23). The sum
+fits in the 8 GB Docker VM with the mock (512 MB limit, 2 MB used) and k6. ClickHouse is
+the one that comes close to its limit (1.2 GB peak in prod at 1000 RPS), so it gets
+`clickhouse-low-memory.xml` (small mark cache, no uncompressed cache, no system log tables
+except `query_log`, which the worker reads). Web and worker get `--max-old-space-size`
+below their limits. Web and the worker bind to the container hostname, so their
+healthchecks use it, and the worker waits for Web because Web applies the Postgres and
+ClickHouse migrations.
+
+**Profiles are an ingestion mode, not a different stack.** The gateway cannot work without
+Web, so `minimal` cannot drop Langfuse. `minimal` = gateway ingestion mode **NONE**
+(nothing is sent to Langfuse, no trace header), `prod` = **USAGE** (the default: a generation
+with token usage per request, no prompt or response), and `LANGFUSE_INGESTION_MODE=FULL`
+(prompts and responses too) is the variant for S6. The mode is organisation config stored in
+Postgres (not an environment variable), written by `langfuse-setup`; `target.env` exports it
+per profile. `verify.sh` reads it back from Postgres and proves the effect (no trace header
+and nothing in ClickHouse in NONE; header and all generations with usage and no content in
+USAGE; content too in FULL). Both profiles use the same gateway key, so key resolution is
+equal in both.
+
+**Headless setup (`gateways/langfuse/setup.mjs`).** `LANGFUSE_INIT_*` on Web creates the
+organisation, project, project keys and owner user. A setup container (the Web image, which has
+Node and Prisma) logs in as that user and calls the tRPC routes of the gateway UI:
+`aiGateway.updateConfig` (ingestion project and mode) and `aiGateway.createApiKey` (gateway key),
+and tries `aiGateway.createConnection`. Two parts are not clean API use:
+(1) the connection falls back to a Prisma insert (D22); (2) Web generates the key secret
+itself, so the script replaces the new key's stored hash with the hash of a fixed dummy secret
+(`sk-lf-gwbench-gateway-key`, same salted SHA-256 as Web's `createShaHash`), so k6 uses a
+constant key like the other targets. The ES256 key that signs ingestion tokens is generated in
+memory inside the Web container at every start, so no private key is committed or ends up in
+`compose.resolved.yml`. All other keys and passwords are local dummy values.
+
+**Gateway settings.** `LANGFUSE_AI_GATEWAY_WEB_URL=http://langfuse-web:3000` with
+`LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL=true` (the gateway warns at start that traffic is
+unencrypted; it stays on the Docker network), the shared service key, the allow-list, log level
+`warn` (no line per request, like LiteLLM and Bifrost). Memory budget and telemetry buffer are
+at their defaults (60 % of the cgroup limit minus 64 MiB; 64 MiB). k6 uses the native route
+`POST /openai/v1/chat/completions` with model `gpt-mock` (Web routes `gpt-*` to the OpenAI
+connection and the gateway forwards the name unchanged).
+
+## D22 - Langfuse go/no-go: GO, with a seeded connection (D2)
+
+**Outcome: go.** The gateway reaches the mock at `http://mock-llm:9000/v1` over plain http
+through its custom-base-URL support, so the TLS fallback (network alias `api.openai.com`,
+self-signed terminator, `SSL_CERT_FILE`) was not needed and not built. Plain and streaming
+requests work, the rate ladder (100 to 1000 RPS) runs, and a bad key gets 401.
+
+**Caveat found in the source and on the running stack.** Web v4.78.0 gates the control-plane
+write: `createConnection` with a `baseURL` fails with "Custom base URLs and extra headers are
+not available yet" unless `isGatewayPreReleaseEnvironment()` is true, which needs
+`NODE_ENV=development`, a PR-preview build (`NEXT_PUBLIC_PREVIEW_PR_URL`) or Langfuse Cloud
+region STAGING or DEV. A normal self-hosted production image is none of these (the Web image bakes
+in an empty `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`, which counts as unset). The gateway's README
+and the data plane (resolve, outbound checks) have no such gate, which is why a row inserted into
+`gateway_ai_connections` works. `setup.mjs` therefore tries the tRPC route first, logs the
+refusal, and inserts the row with Prisma using Web's own encryption and column layout. It is
+the "seed against Postgres" last resort the issue allows, and it means two things for the
+report: the benchmark exercises a setup that a stock self-hosted user cannot create from the
+UI today, and the allow-list (D2) is not enough on its own. I did not try to flip the gate with
+an environment variable (`NEXT_PUBLIC_*` values are inlined when the image is built, so a
+runtime setting very likely does nothing); nothing in the benchmark depends on it.
+
+The path measured is equal to the other gateways on the wire: plain http to the mock, no
+TLS terminator hop, no extra proxy.
+
+## D23 - Langfuse: Web calls per request (D3), resources, ladder, overhead
+
+**Web calls per gateway request (D3).** `gateways/langfuse/d3.py` puts a counting proxy
+(`d3_proxy.py`) between the gateway and Web, sends 200 requests (4 threads, USAGE mode,
+after 5 warm-up requests) and reads the proxy plus Postgres and Redis counters (minus the idle
+background rate of the worker's queues):
+
+| Resolve cache | `POST /resolve` per request | `POST /otel/v1/traces` per request | Postgres transactions per request | Redis commands per request |
+| --- | --- | --- | --- | --- |
+| on (default, TTL 60 s) | 1.000 (200 for 200) | 0.005 (1 batch for 200) | about 0 | 6.1 |
+| off | 1.000 (200 for 200) | 0.005 (1 batch for 200) | 2.1 | 5.6 |
+
+So the gateway really calls Web once per request, and the Redis cache does not change that: it
+removes the Postgres key and connection lookup (about 2 transactions), nothing else. What
+still runs in Web per request regardless (from the source): the HMAC check, the rate-limit counters
+in Redis (the 5 to 6 Redis commands per request in the table are most likely these; not measured
+separately), decrypting the credential and signing an ES256 ingestion token. Web looks like the
+limit of the stack (below). Trace uploads are batched, so they
+cost almost nothing per request. The cache TTL and switch are in the Web container's
+environment and in `compose.resolved.yml` of every run.
+
+**Resources of the whole stack** (contract rule 1; `resources.csv` of the committed runs,
+`results/2026-11-11/langfuse/{minimal,prod}/s1/run-1/`, 100 RPS):
+
+| | idle (after setup) | minimal at 100 RPS | prod at 100 RPS |
+| --- | --- | --- | --- |
+| Gateway container | 3 MB, 0 % CPU | 7 % CPU, 5 MB peak | 8 % CPU, 25 MB peak |
+| Whole Langfuse stack, CPU (100 % = 1 core) | about 13 % | 46 % | 61 % |
+| Whole Langfuse stack, memory (sum of container peaks) | about 2.3 GB | 2.1 GB | 2.4 GB |
+
+Per container at 100 RPS (CPU mean over the step, memory peak): Web 28 to 33 % and 0.9 GB,
+ClickHouse 4 % and 0.75 to 0.86 GB, worker 3 % (minimal) and 12 % (prod) and 0.35 to 0.42 GB,
+MinIO 1 % and 70 to 80 MB, Postgres 1 % and 50 MB, Redis 2 % and 13 MB. The gateway itself is
+the smallest part of the stack. At 1000 RPS in prod the peaks are 3.2 GB in total (ClickHouse 1.2,
+Web 0.95, worker 0.5, gateway 0.29 GB), so the stack fits the 8 GB VM with the mock and k6.
+
+**Latency, short runs** (20 s per step after 5 s warm-up, one run each, so indicative; S1 direct at
+the same rates is 62.4, 62.1, 61.9 and 61.9 ms, D9). p50 of `http_req_duration` in ms, achieved rate
+in parentheses, Web CPU as % of one core over the step:
+
+| Rate | minimal p50 (p99) | Web CPU | prod p50 (p99) | Web CPU |
+| --- | --- | --- | --- | --- |
+| 100 | 64.8 (71.6) | 28 % | 64.8 (80.6) | 33 % |
+| 250 | 63.8 (81.3) | 48 % | 64.0 (110) | 54 % |
+| 500 | 63.0 (150) | 67 % | 63.3 (204) | 86 % |
+| 1000 | 63.3 (245), 992 achieved | 104 % | **148.5 (1180), 960 achieved** | 140 % |
+
+The 100 RPS rows are the committed evidence; the ladder rows are a scratch run that is not committed
+(same practice as D14). The p50 is about 2 to 3 ms above the baseline up to 500 RPS in both
+profiles. The tail goes first (p99 150 to 200 ms at 500) and the stack saturates between 500 and 1000
+RPS in prod (p50 148 ms and 40 requests per second short at 1000) and shows its limit in minimal at
+1000 (p95 189 ms, 8 requests per second short). The limit looks like Web: it is one Node process whose
+CPU reading passes 100 % at 1000 RPS (prod), while the gateway container uses at most 53 % of its
+2 CPUs and the other containers are far from theirs. This is an inference from CPU readings, not a
+profile. ClickHouse and the worker add load in
+prod (traces) and make the tail worse there. For story #8: a Web setting (more CPU or a second Web
+replica, `NODE_OPTIONS`) is where tuning would matter, and the ladder is meaningful here up to 1000.
+
+**No overhead header.** The gateway's response headers are `langfuse-request-id`,
+`langfuse-trace-id`, `langfuse-observation-id`, `langfuse-organization-id`, `langfuse-project-id`,
+`langfuse-provider` and `langfuse-provider-connection-id`; none carries a duration. The gateway has
+an OTLP metric `gateway.overhead.duration` ("time to response headers minus the caller's upload and
+the provider's wait"), which needs a collector and is not wired up. So `gateway_overhead_ms` stays
+empty for Langfuse, no change to `k6/lib/chat.js` or `summarize.py`, and its numbers are compared
+through the k6 latency and the S1 baseline only. A future story can add a collector and read that
+metric (OTLP endpoint `OTEL_EXPORTER_OTLP_ENDPOINT`), labelled as gateway-reported.
+
+**Traces (for S6).** USAGE traces appear in the project's v2 observations API about 3 s after the
+last request (35 of 35 in the smoke and verify bursts, FULL as well); they are best effort and
+not durable, so S6 must count them against requests sent under load and report lag and loss.
