@@ -102,5 +102,8 @@ id to a script. Add a line `s2  s2_equal_rate.js  description` and the script.
 Use `k6/lib/` for the pieces every scenario shares: `env.js` (target, model, key,
 tags), `payload.js`, `chat.js` (one checked request), `arrival.js` (open-loop
 steps with the warm-up excluded, per-step sub-metrics in `summary.json`) and
-`ladder.js` (the Phase 1 rate ladder). `k6/scenarios/s1_baseline.js` is a
+`ladder.js` (the Phase 1 rate ladder and the fixed rates of S3 and S5), `closed.js` (closed-loop
+virtual-user steps, S4). A scenario with extra metrics (S3) passes them to `arrivalOptions` so they get per-step
+sub-metrics; one that varies something other than the rate per step (S5) passes `stepNames` and
+`stepInfo` to `buildPlan`. `k6/scenarios/s1_baseline.js` is a
 12-line example. Nothing else changes: `make run TARGET=<t> SCENARIO=s2` works.

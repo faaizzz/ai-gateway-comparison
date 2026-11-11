@@ -35,6 +35,8 @@ make run TARGET=direct SCENARIO=s1                  # S1 baseline at the rate la
 make run TARGET=direct SCENARIO=s1 REPEAT=3         # three independent runs, each on a fresh stack
 make run TARGET=direct SCENARIO=s1-ramp             # mock capacity check, about 3 min
 make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=20 WARMUP=5 DATE=scratch-x   # quick check, written to results/scratch-x/ (gitignored)
+make run TARGET=litellm PROFILE=minimal SCENARIO=s2 REPEAT=3   # S2 equal-rate ladder, 3 runs (about 17 min); S3 streaming, S4 closed loop, S5 payload sizes: SCENARIO=s3|s4|s5
+MOCK_OUTPUT_TOKENS=1700 make run TARGET=bifrost PROFILE=minimal SCENARIO=s5-resp10k   # S5 response size (mock knob; 17000 with s5-resp100k)
 make up TARGET=<gateway> PROFILE=prod; make smoke TARGET=<gateway>; make down   # by hand
 scripts/smoke.sh litellm prod                       # up, plain + streaming request, mode check, down
 scripts/smoke.sh bifrost minimal                    # same for Bifrost (log store verified off)
@@ -53,7 +55,7 @@ Results land in `results/<YYYY-MM-DD>/<target>/<profile>/<scenario>/run-<n>/`:
 | `k6.log`, `compose.resolved.yml`, `config/` | k6 console output, resolved compose config, snapshot of the gateway's config files |
 | `raw/` | Per-request k6 output, only with `--raw`; git-ignored |
 
-`scripts/summarize.py <run-dir>` prints a per-step table (achieved rate, p50/p95/p99, errors, CPU). `direct` is the S1 baseline target (no gateway, profile `none`).
+`scripts/summarize.py <run-dir>` prints a per-step table (achieved rate, p50/p95/p99, errors, CPU). `scripts/sustained.py <run-dir>` marks each step sustained or saturated (D15, D24). `scripts/summary_tables.py results/<date>` writes the per-scenario side-by-side tables for S2 to S5 (`SUMMARY-S2-S5.md` and `.json` in that folder). `direct` is the S1 baseline target (no gateway, profile `none`).
 
 Adding a gateway or a scenario: [gateways/README.md](gateways/README.md).
 
