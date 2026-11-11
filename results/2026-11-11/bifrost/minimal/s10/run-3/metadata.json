@@ -1,0 +1,311 @@
+{
+  "target": "bifrost",
+  "profile": "minimal",
+  "scenario": "s10",
+  "run": 3,
+  "started": "2026-11-11T11:08:28Z",
+  "finished": "2026-11-11T11:13:52Z",
+  "k6": {
+    "script": "scenarios/s10_max_rate.js",
+    "exit_code": 0,
+    "target_url": "http://bifrost:8080/v1",
+    "model": "openai/mock-gpt",
+    "runner_flags": "repeat=3 duration=30 rate=1000,1500,2000,3000,4000,6000,8000,10000,12000,16000 warmup=10 raw=0",
+    "plan": {
+      "t0_ms": 1794395309683,
+      "rates": [
+        1000,
+        1500,
+        2000,
+        3000,
+        4000,
+        6000,
+        8000,
+        10000,
+        12000,
+        16000
+      ],
+      "step_s": 30,
+      "warmup_s": 10,
+      "ramp_s": 1,
+      "total_s": 320,
+      "steps": [
+        {
+          "name": "warmup",
+          "phase": "warmup",
+          "rate": 1000,
+          "fromS": 0,
+          "toS": 10
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 1000,
+          "fromS": 10,
+          "toS": 11
+        },
+        {
+          "name": "r1000",
+          "phase": "measure",
+          "rate": 1000,
+          "fromS": 11,
+          "toS": 41
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 1500,
+          "fromS": 41,
+          "toS": 42
+        },
+        {
+          "name": "r1500",
+          "phase": "measure",
+          "rate": 1500,
+          "fromS": 42,
+          "toS": 72
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 2000,
+          "fromS": 72,
+          "toS": 73
+        },
+        {
+          "name": "r2000",
+          "phase": "measure",
+          "rate": 2000,
+          "fromS": 73,
+          "toS": 103
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 3000,
+          "fromS": 103,
+          "toS": 104
+        },
+        {
+          "name": "r3000",
+          "phase": "measure",
+          "rate": 3000,
+          "fromS": 104,
+          "toS": 134
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 4000,
+          "fromS": 134,
+          "toS": 135
+        },
+        {
+          "name": "r4000",
+          "phase": "measure",
+          "rate": 4000,
+          "fromS": 135,
+          "toS": 165
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 6000,
+          "fromS": 165,
+          "toS": 166
+        },
+        {
+          "name": "r6000",
+          "phase": "measure",
+          "rate": 6000,
+          "fromS": 166,
+          "toS": 196
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 8000,
+          "fromS": 196,
+          "toS": 197
+        },
+        {
+          "name": "r8000",
+          "phase": "measure",
+          "rate": 8000,
+          "fromS": 197,
+          "toS": 227
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 10000,
+          "fromS": 227,
+          "toS": 228
+        },
+        {
+          "name": "r10000",
+          "phase": "measure",
+          "rate": 10000,
+          "fromS": 228,
+          "toS": 258
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 12000,
+          "fromS": 258,
+          "toS": 259
+        },
+        {
+          "name": "r12000",
+          "phase": "measure",
+          "rate": 12000,
+          "fromS": 259,
+          "toS": 289
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 16000,
+          "fromS": 289,
+          "toS": 290
+        },
+        {
+          "name": "r16000",
+          "phase": "measure",
+          "rate": 16000,
+          "fromS": 290,
+          "toS": 320
+        }
+      ]
+    }
+  },
+  "git": {
+    "sha": "73ee66bc21f5c35e9951e67133b50d898319bc7d",
+    "branch": "main",
+    "dirty": true
+  },
+  "mock_knobs": {
+    "MOCK_RETRY_AFTER_S": "",
+    "MOCK_FAIL_RATE": "",
+    "MOCK_LATENCY_MS": "60",
+    "MOCK_ITL_MS": "5",
+    "MOCK_TTFT_MS": "20",
+    "MOCK_429_RATE": "",
+    "MOCK_OUTPUT_TOKENS": "40",
+    "MOCK_FAIL_STATUS": "",
+    "MOCK_WORKER_THREADS": "8",
+    "MOCK_HOST": "0.0.0.0",
+    "MOCK_PORT": "9000"
+  },
+  "images": [
+    {
+      "ref": "gwbench/k6:2.3.0-sse0.2.0",
+      "id": "sha256:9f6d45b0ef770930dda543521c5293e21d1157632266e4dbc6b43fbd4d1e8c1b",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:42:37.052006719Z"
+    },
+    {
+      "ref": "gwbench/mock-llm:0.1.0",
+      "id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:29:11.390168096Z"
+    },
+    {
+      "ref": "maximhq/bifrost:v2.5.1",
+      "id": "sha256:1a6229498bf2dbeaf29ca287b3ce3d3b0ea3b2be9968d387b87017e842225d50",
+      "repo_digests": [
+        "maximhq/bifrost@sha256:5ec9873acaf1687556b6e4dd854b92b539d9debf87a5a683b66338648b84d3c8"
+      ],
+      "architecture": "arm64",
+      "created": "2026-11-10T08:15:31.916791971Z"
+    },
+    {
+      "ref": "python:3.13.9-alpine3.22",
+      "id": "sha256:052cb92092122a08c5f6bc22c9983b9bab843e9790a99e69e867e460d7346571",
+      "repo_digests": [
+        "python@sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1"
+      ],
+      "architecture": "arm64",
+      "created": "2025-10-14T21:49:24Z"
+    }
+  ],
+  "containers": [
+    {
+      "name": "gwbench-bifrost",
+      "image": "maximhq/bifrost:v2.5.1",
+      "image_id": "sha256:1a6229498bf2dbeaf29ca287b3ce3d3b0ea3b2be9968d387b87017e842225d50",
+      "cpus": 2.0,
+      "mem_limit_bytes": 2147483648,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-mock-llm",
+      "image": "gwbench/mock-llm:0.1.0",
+      "image_id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "cpus": 2.0,
+      "mem_limit_bytes": 536870912,
+      "mock_env": {
+        "MOCK_RETRY_AFTER_S": "",
+        "MOCK_FAIL_RATE": "",
+        "MOCK_LATENCY_MS": "60",
+        "MOCK_ITL_MS": "5",
+        "MOCK_TTFT_MS": "20",
+        "MOCK_429_RATE": "",
+        "MOCK_OUTPUT_TOKENS": "40",
+        "MOCK_FAIL_STATUS": "",
+        "MOCK_WORKER_THREADS": "8",
+        "MOCK_HOST": "0.0.0.0",
+        "MOCK_PORT": "9000"
+      }
+    }
+  ],
+  "container_states": [
+    {
+      "name": "gwbench-bifrost",
+      "status": "running",
+      "oom_killed": false,
+      "exit_code": 0,
+      "restart_count": 0
+    },
+    {
+      "name": "gwbench-mock-llm",
+      "status": "running",
+      "oom_killed": false,
+      "exit_code": 0,
+      "restart_count": 0
+    }
+  ],
+  "other_running_containers": [],
+  "compose_files": [
+    "docker-compose.base.yml",
+    "gateways/bifrost/docker-compose.minimal.yml"
+  ],
+  "config_snapshot": [
+    "gateways/bifrost/config.minimal.json",
+    "gateways/bifrost/docker-compose.minimal.yml",
+    "gateways/bifrost/datasheet/pricing.json",
+    "gateways/bifrost/datasheet/model-parameters.json"
+  ],
+  "host": {
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1",
+    "cpu_cores": 8,
+    "memory_bytes": 17179869184
+  },
+  "docker": {
+    "server_version": "25.0.3",
+    "operating_system": "Docker Desktop",
+    "architecture": "aarch64",
+    "ncpu": 8,
+    "mem_total_bytes": 8222334976,
+    "storage_driver": "overlay2"
+  },
+  "notes": [
+    "Read results from the per-step sub-metrics in summary.json (e.g. http_req_duration{step:r500}); whole-run totals include warm-up and ramp.",
+    "resources.csv covers the whole run including warm-up; timestamps are unix seconds. k6.plan.t0_ms is when the load started."
+  ]
+}

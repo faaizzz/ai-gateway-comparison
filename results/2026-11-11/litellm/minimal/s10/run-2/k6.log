@@ -1,0 +1,192 @@
+time="2026-11-11T10:22:41Z" level=info msg="GWBENCH_PLAN {\"t0_ms\":1794392561892,\"rates\":[100,200,250,300,350,400,500],\"step_s\":30,\"warmup_s\":10,\"ramp_s\":1,\"total_s\":227,\"steps\":[{\"name\":\"warmup\",\"phase\":\"warmup\",\"rate\":100,\"fromS\":0,\"toS\":10},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":10,\"toS\":11},{\"name\":\"r100\",\"phase\":\"measure\",\"rate\":100,\"fromS\":11,\"toS\":41},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":200,\"fromS\":41,\"toS\":42},{\"name\":\"r200\",\"phase\":\"measure\",\"rate\":200,\"fromS\":42,\"toS\":72},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":250,\"fromS\":72,\"toS\":73},{\"name\":\"r250\",\"phase\":\"measure\",\"rate\":250,\"fromS\":73,\"toS\":103},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":300,\"fromS\":103,\"toS\":104},{\"name\":\"r300\",\"phase\":\"measure\",\"rate\":300,\"fromS\":104,\"toS\":134},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":350,\"fromS\":134,\"toS\":135},{\"name\":\"r350\",\"phase\":\"measure\",\"rate\":350,\"fromS\":135,\"toS\":165},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":400,\"fromS\":165,\"toS\":166},{\"name\":\"r400\",\"phase\":\"measure\",\"rate\":400,\"fromS\":166,\"toS\":196},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":500,\"fromS\":196,\"toS\":197},{\"name\":\"r500\",\"phase\":\"measure\",\"rate\":500,\"fromS\":197,\"toS\":227}]}" source=console
+time="2026-11-11T10:24:21Z" level=warning msg="Insufficient VUs, reached 600 active VUs and cannot initialize more" executor=ramping-arrival-rate scenario=steps
+
+
+  █ THRESHOLDS 
+
+    checks{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r200}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r250}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r300}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r350}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r400}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r500}
+    ✓ 'rate>=0' rate=100.00%
+
+    gateway_overhead_ms{step:r100}
+    ✓ 'max>=0' max=13.0968
+
+    gateway_overhead_ms{step:r200}
+    ✓ 'max>=0' max=93.5662
+
+    gateway_overhead_ms{step:r250}
+    ✓ 'max>=0' max=1706.229
+
+    gateway_overhead_ms{step:r300}
+    ✓ 'max>=0' max=2028.0519
+
+    gateway_overhead_ms{step:r350}
+    ✓ 'max>=0' max=2099.3729
+
+    gateway_overhead_ms{step:r400}
+    ✓ 'max>=0' max=2270.6051
+
+    gateway_overhead_ms{step:r500}
+    ✓ 'max>=0' max=2118.412
+
+    http_req_duration{step:r100}
+    ✓ 'max>=0' max=82.89ms
+
+    http_req_duration{step:r200}
+    ✓ 'max>=0' max=188.55ms
+
+    http_req_duration{step:r250}
+    ✓ 'max>=0' max=3.39s
+
+    http_req_duration{step:r300}
+    ✓ 'max>=0' max=4.18s
+
+    http_req_duration{step:r350}
+    ✓ 'max>=0' max=4.06s
+
+    http_req_duration{step:r400}
+    ✓ 'max>=0' max=3.89s
+
+    http_req_duration{step:r500}
+    ✓ 'max>=0' max=3.64s
+
+    http_req_failed{step:r100}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r200}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r250}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r300}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r350}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r400}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r500}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_waiting{step:r100}
+    ✓ 'max>=0' max=82.81ms
+
+    http_req_waiting{step:r200}
+    ✓ 'max>=0' max=188.48ms
+
+    http_req_waiting{step:r250}
+    ✓ 'max>=0' max=3.39s
+
+    http_req_waiting{step:r300}
+    ✓ 'max>=0' max=4.17s
+
+    http_req_waiting{step:r350}
+    ✓ 'max>=0' max=4.06s
+
+    http_req_waiting{step:r400}
+    ✓ 'max>=0' max=3.89s
+
+    http_req_waiting{step:r500}
+    ✓ 'max>=0' max=3.64s
+
+    http_reqs{step:r100}
+    ✓ 'count>=0' count=3000
+
+    http_reqs{step:r200}
+    ✓ 'count>=0' count=6000
+
+    http_reqs{step:r250}
+    ✓ 'count>=0' count=6807
+
+    http_reqs{step:r300}
+    ✓ 'count>=0' count=5848
+
+    http_reqs{step:r350}
+    ✓ 'count>=0' count=5379
+
+    http_reqs{step:r400}
+    ✓ 'count>=0' count=5316
+
+    http_reqs{step:r500}
+    ✓ 'count>=0' count=5483
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 80148   350.37013/s
+    checks_succeeded...: 100.00% 80148 out of 80148
+    checks_failed......: 0.00%   0 out of 80148
+
+    ✓ status is 200
+    ✓ has completion
+
+    CUSTOM
+    gateway_overhead_ms............: avg=1106.058502 min=0.807     med=1560.63155 max=2270.6051 p(90)=1821.4367  p(95)=1890.8287   p(99)=2019.60925 
+      { step:r100 }................: avg=3.405552    min=2.8203    med=3.2984     max=13.0968   p(90)=3.72537    p(95)=4.01297     p(99)=6.42967    
+      { step:r200 }................: avg=8.400201    min=2.7521    med=5.9924     max=93.5662   p(90)=15.1618    p(95)=22.626855   p(99)=40.627131  
+      { step:r250 }................: avg=783.484241  min=15.543    med=732.3411   max=1706.229  p(90)=1485.68198 p(95)=1560.72874  p(99)=1659.23266 
+      { step:r300 }................: avg=1621.32822  min=1182.081  med=1590.82305 max=2028.0519 p(90)=1815.78577 p(95)=1871.962715 p(99)=1950.441177
+      { step:r350 }................: avg=1748.192314 min=1286.916  med=1733.7441  max=2099.3729 p(90)=1892.34616 p(95)=1930.71472  p(99)=2018.381464
+      { step:r400 }................: avg=1774.660752 min=1315.5601 med=1755.02805 max=2270.6051 p(90)=1915.72765 p(95)=2001.711675 p(99)=2131.829615
+      { step:r500 }................: avg=1700.53652  min=1093.781  med=1687.6509  max=2118.412  p(90)=1901.58156 p(95)=1983.38523  p(99)=2038.216822
+
+    HTTP
+    http_req_duration..............: avg=2.11s       min=63.92ms   med=2.95s      max=4.18s     p(90)=3.42s      p(95)=3.51s       p(99)=3.7s       
+      { expected_response:true }...: avg=2.11s       min=63.92ms   med=2.95s      max=4.18s     p(90)=3.42s      p(95)=3.51s       p(99)=3.7s       
+      { step:r100 }................: avg=68.03ms     min=65.54ms   med=67.99ms    max=82.89ms   p(90)=69.08ms    p(95)=69.69ms     p(99)=72.86ms    
+      { step:r200 }................: avg=76.92ms     min=66.41ms   med=73.36ms    max=188.55ms  p(90)=87.04ms    p(95)=98.55ms     p(99)=125.87ms   
+      { step:r250 }................: avg=1.5s        min=103.41ms  med=1.38s      max=3.39s     p(90)=2.82s      p(95)=2.92s       p(99)=3.02s      
+      { step:r300 }................: avg=3.06s       min=2.41s     med=3.01s      max=4.18s     p(90)=3.41s      p(95)=3.46s       p(99)=3.55s      
+      { step:r350 }................: avg=3.31s       min=2.85s     med=3.29s      max=4.06s     p(90)=3.53s      p(95)=3.6s        p(99)=3.67s      
+      { step:r400 }................: avg=3.36s       min=2.91s     med=3.31s      max=3.89s     p(90)=3.62s      p(95)=3.73s       p(99)=3.79s      
+      { step:r500 }................: avg=3.19s       min=1.68s     med=3.24s      max=3.64s     p(90)=3.44s      p(95)=3.53s       p(99)=3.6s       
+    http_req_failed................: 0.00% 0 out of 40074
+      { step:r100 }................: 0.00% 0 out of 3000
+      { step:r200 }................: 0.00% 0 out of 6000
+      { step:r250 }................: 0.00% 0 out of 6807
+      { step:r300 }................: 0.00% 0 out of 5848
+      { step:r350 }................: 0.00% 0 out of 5379
+      { step:r400 }................: 0.00% 0 out of 5316
+      { step:r500 }................: 0.00% 0 out of 5483
+    http_reqs......................: 40074 175.185065/s
+      { step:r100 }................: 3000  13.114618/s
+      { step:r200 }................: 6000  26.229236/s
+      { step:r250 }................: 6807  29.757068/s
+      { step:r300 }................: 5848  25.564762/s
+      { step:r350 }................: 5379  23.51451/s
+      { step:r400 }................: 5316  23.239103/s
+      { step:r500 }................: 5483  23.96915/s
+
+    EXECUTION
+    dropped_iterations.............: 25826 112.899373/s
+    iteration_duration.............: avg=2.11s       min=65.71ms   med=2.96s      max=4.17s     p(90)=3.42s      p(95)=3.51s       p(99)=3.7s       
+    iterations.....................: 40074 175.185065/s
+    vus............................: 364   min=6          max=600
+    vus_max........................: 600   min=85         max=600
+
+    NETWORK
+    data_received..................: 72 MB 313 kB/s
+    data_sent......................: 12 MB 51 kB/s
+
+
+
