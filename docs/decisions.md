@@ -64,3 +64,70 @@ nothing is downloaded when a test runs (k6's automatic extension resolution is
 not used). The image is tagged `gwbench/k6:2.3.0-sse0.2.0`. xk6-sse emits no
 time-to-first-token metric and no `http_req_waiting`, so scripts time the first
 `data:` event themselves (see `k6/smoke.js`).
+
+## D8 - Phase 1 rate ladder and mock capacity
+
+**Ladder: 100, 250, 500, 1000 requests per second** (`k6/lib/ladder.js`, used by
+S1 and later by S2 for every gateway). Non-streaming, mock at
+`MOCK_LATENCY_MS=60`.
+
+**Mock ceiling: not reached, at least 20,000 requests per second.** The S1 ramp
+(`make run TARGET=direct SCENARIO=s1-ramp`, k6 on the same Docker Desktop VM, 8
+CPUs, 15 s per step after a 10 s warm-up) went 1000, 2000, 4000, 8000, 12000,
+16000, 20000 and every step held its target rate with 0 % errors. p50 stayed at
+61.3-61.7 ms (the mock's 60 ms plus about 1.5 ms). p99 stayed at 64-68 ms up to
+8000 and rose to 78 ms at 16000 and 80 ms at 20000; 115 iterations were dropped
+over the whole run, all at the top steps. At 20000 requests per second k6 used
+about 4.3 cores and the mock about 1 of its 2 cores, so the limit of this setup
+is the load generator and the VM, not the mock. The ramp stops there because
+nothing a gateway on 2 CPUs does gets near it. Result set:
+`results/2026-11-11/direct/none/s1-ramp/run-1/`.
+
+So the highest ladder rate (1000) is at most 1/20 of the ceiling, well inside the
+1/2 to 1/3 required by contract rule 9. The ladder is chosen by what the
+gateways can do, not by the mock: 1000 is above what LiteLLM is expected to hold
+on 2 CPUs (S10 finds the real maximum) and low enough that k6 itself costs
+under one core (74 % of a core at 1000). Rates above 1000 are for S10 only.
+
+**Durations.** 15 s warm-up at the first rate, then 60 s per step, plus a 1 s
+rate change between steps. Both are excluded from results: every iteration tags
+its metrics with the step it started in, and only the `r<rate>` sub-metrics in
+`summary.json` count (see `k6/lib/arrival.js`). One S1 run is 4 x 61 s + 16 s
+= 4.5 minutes plus about 40 s of stack start and teardown. A gateway scenario
+with 4 steps and 3 repeats on a fresh stack each is therefore about 17 minutes per
+profile. Each repeat starts a fresh stack on purpose (no state carried over);
+the cost is the gateway start time per repeat.
+
+## D9 - S1 repeatability
+
+Three S1 runs, each on a fresh stack, no other load on the Docker VM
+(`results/2026-11-11/direct/none/s1/run-1..3`). p50 of `http_req_duration` in ms:
+
+| Rate | run 1 | run 2 | run 3 | spread |
+| ---- | ----- | ----- | ----- | ------ |
+| 100 | 62.37 | 62.28 | 62.38 | 0.1 % |
+| 250 | 62.09 | 62.04 | 62.22 | 0.3 % |
+| 500 | 61.91 | 61.90 | 61.91 | 0.0 % |
+| 1000 | 61.94 | 61.72 | 61.99 | 0.4 % |
+
+The p50 differs by at most 0.4 % between runs, far under the 5 % noise
+threshold of contract rule 11. p99 is less steady (64-68 ms; at 1000 it was 67.8,
+67.6 and 66.7) and max varies from 75 to 107 ms, so tail numbers need the
+median of repeats and the spread. Achieved rate matched the target to within
+0.1 % in every step and there were no errors.
+
+An earlier set of runs was discarded: other containers in the same Docker VM
+(another project) were using about 8 % CPU and 1.4 GB. Before gateway runs, check
+`docker ps` for anything else running.
+
+## D10 - S1 results use per-step sub-metrics, not whole-run totals
+
+A run is one k6 scenario that walks through warm-up and the steps, so the
+whole-run totals in `summary.json` (and the k6 console summary) mix warm-up,
+rate changes and every step. Read only `http_req_duration{step:r<rate>}` and the
+other `{step:...}` sub-metrics, or run `scripts/summarize.py <run-dir>`.
+The sub-metrics exist because each measured step has a threshold that always
+passes. `dropped_iterations` cannot be split per step (a dropped iteration never
+starts), so the table uses the achieved request rate per step to show saturation.
+The k6 tag for the benchmark scenario is `bench_scenario`, because k6 already
+uses `scenario` for its executor name.

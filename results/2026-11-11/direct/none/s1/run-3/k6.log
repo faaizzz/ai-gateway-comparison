@@ -1,0 +1,105 @@
+time="2026-11-11T02:50:53Z" level=info msg="GWBENCH_PLAN {\"t0_ms\":1794365453904,\"rates\":[100,250,500,1000],\"step_s\":60,\"warmup_s\":15,\"ramp_s\":1,\"total_s\":259,\"steps\":[{\"name\":\"warmup\",\"phase\":\"warmup\",\"rate\":100,\"fromS\":0,\"toS\":15},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":15,\"toS\":16},{\"name\":\"r100\",\"phase\":\"measure\",\"rate\":100,\"fromS\":16,\"toS\":76},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":250,\"fromS\":76,\"toS\":77},{\"name\":\"r250\",\"phase\":\"measure\",\"rate\":250,\"fromS\":77,\"toS\":137},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":500,\"fromS\":137,\"toS\":138},{\"name\":\"r500\",\"phase\":\"measure\",\"rate\":500,\"fromS\":138,\"toS\":198},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":1000,\"fromS\":198,\"toS\":199},{\"name\":\"r1000\",\"phase\":\"measure\",\"rate\":1000,\"fromS\":199,\"toS\":259}]}" source=console
+
+
+  █ THRESHOLDS 
+
+    checks{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r1000}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r250}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r500}
+    ✓ 'rate>=0' rate=100.00%
+
+    http_req_duration{step:r100}
+    ✓ 'max>=0' max=82.78ms
+
+    http_req_duration{step:r1000}
+    ✓ 'max>=0' max=84ms
+
+    http_req_duration{step:r250}
+    ✓ 'max>=0' max=93.78ms
+
+    http_req_duration{step:r500}
+    ✓ 'max>=0' max=91.24ms
+
+    http_req_failed{step:r100}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r1000}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r250}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r500}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_waiting{step:r100}
+    ✓ 'max>=0' max=82.56ms
+
+    http_req_waiting{step:r1000}
+    ✓ 'max>=0' max=83.83ms
+
+    http_req_waiting{step:r250}
+    ✓ 'max>=0' max=93.73ms
+
+    http_req_waiting{step:r500}
+    ✓ 'max>=0' max=91.23ms
+
+    http_reqs{step:r100}
+    ✓ 'count>=0' count=6000
+
+    http_reqs{step:r1000}
+    ✓ 'count>=0' count=60005
+
+    http_reqs{step:r250}
+    ✓ 'count>=0' count=15001
+
+    http_reqs{step:r500}
+    ✓ 'count>=0' count=29998
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 227790  879.266461/s
+    checks_succeeded...: 100.00% 227790 out of 227790
+    checks_failed......: 0.00%   0 out of 227790
+
+    ✓ status is 200
+    ✓ has completion
+
+    HTTP
+    http_req_duration..............: avg=62.08ms min=60.17ms med=62ms    max=93.78ms p(90)=63.03ms p(95)=63.27ms p(99)=65.66ms
+      { expected_response:true }...: avg=62.08ms min=60.17ms med=62ms    max=93.78ms p(90)=63.03ms p(95)=63.27ms p(99)=65.66ms
+      { step:r100 }................: avg=62.32ms min=60.29ms med=62.38ms max=82.78ms p(90)=63.24ms p(95)=63.41ms p(99)=64.38ms
+      { step:r1000 }...............: avg=62.08ms min=60.17ms med=61.99ms max=84ms    p(90)=62.98ms p(95)=63.24ms p(99)=66.67ms
+      { step:r250 }................: avg=62.24ms min=60.31ms med=62.22ms max=93.78ms p(90)=63.25ms p(95)=63.44ms p(99)=64.74ms
+      { step:r500 }................: avg=61.96ms min=60.25ms med=61.9ms  max=91.24ms p(90)=62.85ms p(95)=63.07ms p(99)=64.54ms
+    http_req_failed................: 0.00%  0 out of 113895
+      { step:r100 }................: 0.00%  0 out of 6000
+      { step:r1000 }...............: 0.00%  0 out of 60005
+      { step:r250 }................: 0.00%  0 out of 15001
+      { step:r500 }................: 0.00%  0 out of 29998
+    http_reqs......................: 113895 439.63323/s
+      { step:r100 }................: 6000   23.159923/s
+      { step:r1000 }...............: 60005  231.618526/s
+      { step:r250 }................: 15001  57.903666/s
+      { step:r500 }................: 29998  115.791893/s
+
+    EXECUTION
+    iteration_duration.............: avg=62.43ms min=60.41ms med=62.31ms max=94.02ms p(90)=63.43ms p(95)=63.72ms p(99)=66.19ms
+    iterations.....................: 113895 439.63323/s
+    vus............................: 63     min=6           max=67 
+    vus_max........................: 160    min=160         max=160
+
+    NETWORK
+    data_received..................: 68 MB  263 kB/s
+    data_sent......................: 33 MB  128 kB/s
+
+
+

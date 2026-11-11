@@ -1,0 +1,226 @@
+{
+  "target": "direct",
+  "profile": "none",
+  "scenario": "s1-ramp",
+  "run": 1,
+  "started": "2026-11-11T02:55:28Z",
+  "finished": "2026-11-11T02:57:32Z",
+  "k6": {
+    "script": "scenarios/s1_ramp.js",
+    "exit_code": 0,
+    "target_url": "http://mock-llm:9000/v1",
+    "model": "mock-upstream",
+    "runner_flags": "repeat=1 duration=default rate=default warmup=default raw=0",
+    "plan": {
+      "t0_ms": 1794365729865,
+      "rates": [
+        1000,
+        2000,
+        4000,
+        8000,
+        12000,
+        16000,
+        20000
+      ],
+      "step_s": 15,
+      "warmup_s": 10,
+      "ramp_s": 1,
+      "total_s": 122,
+      "steps": [
+        {
+          "name": "warmup",
+          "phase": "warmup",
+          "rate": 1000,
+          "fromS": 0,
+          "toS": 10
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 1000,
+          "fromS": 10,
+          "toS": 11
+        },
+        {
+          "name": "r1000",
+          "phase": "measure",
+          "rate": 1000,
+          "fromS": 11,
+          "toS": 26
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 2000,
+          "fromS": 26,
+          "toS": 27
+        },
+        {
+          "name": "r2000",
+          "phase": "measure",
+          "rate": 2000,
+          "fromS": 27,
+          "toS": 42
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 4000,
+          "fromS": 42,
+          "toS": 43
+        },
+        {
+          "name": "r4000",
+          "phase": "measure",
+          "rate": 4000,
+          "fromS": 43,
+          "toS": 58
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 8000,
+          "fromS": 58,
+          "toS": 59
+        },
+        {
+          "name": "r8000",
+          "phase": "measure",
+          "rate": 8000,
+          "fromS": 59,
+          "toS": 74
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 12000,
+          "fromS": 74,
+          "toS": 75
+        },
+        {
+          "name": "r12000",
+          "phase": "measure",
+          "rate": 12000,
+          "fromS": 75,
+          "toS": 90
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 16000,
+          "fromS": 90,
+          "toS": 91
+        },
+        {
+          "name": "r16000",
+          "phase": "measure",
+          "rate": 16000,
+          "fromS": 91,
+          "toS": 106
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 20000,
+          "fromS": 106,
+          "toS": 107
+        },
+        {
+          "name": "r20000",
+          "phase": "measure",
+          "rate": 20000,
+          "fromS": 107,
+          "toS": 122
+        }
+      ]
+    }
+  },
+  "git": {
+    "sha": "6007e2cd9a2870e25e5ba7bfbbd22c4a6af32afe",
+    "branch": "main",
+    "dirty": false
+  },
+  "mock_knobs": {
+    "MOCK_OUTPUT_TOKENS": "40",
+    "MOCK_FAIL_RATE": "",
+    "MOCK_ITL_MS": "5",
+    "MOCK_WORKER_THREADS": "8",
+    "MOCK_TTFT_MS": "20",
+    "MOCK_RETRY_AFTER_S": "",
+    "MOCK_FAIL_STATUS": "",
+    "MOCK_429_RATE": "",
+    "MOCK_LATENCY_MS": "60",
+    "MOCK_HOST": "0.0.0.0",
+    "MOCK_PORT": "9000"
+  },
+  "images": [
+    {
+      "ref": "gwbench/k6:2.3.0-sse0.2.0",
+      "id": "sha256:c55bdcc606f1ae6681815869aaeeb267c24558e0ccbaa9b88b0e949772dea730",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:42:37.052006719Z"
+    },
+    {
+      "ref": "gwbench/mock-llm:0.1.0",
+      "id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:29:11.390168096Z"
+    },
+    {
+      "ref": "python:3.13.9-alpine3.22",
+      "id": "sha256:052cb92092122a08c5f6bc22c9983b9bab843e9790a99e69e867e460d7346571",
+      "repo_digests": [
+        "python@sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1"
+      ],
+      "architecture": "arm64",
+      "created": "2025-10-14T21:49:24Z"
+    }
+  ],
+  "containers": [
+    {
+      "name": "gwbench-mock-llm",
+      "image": "gwbench/mock-llm:0.1.0",
+      "image_id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "cpus": 2.0,
+      "mem_limit_bytes": 536870912,
+      "mock_env": {
+        "MOCK_OUTPUT_TOKENS": "40",
+        "MOCK_FAIL_RATE": "",
+        "MOCK_ITL_MS": "5",
+        "MOCK_WORKER_THREADS": "8",
+        "MOCK_TTFT_MS": "20",
+        "MOCK_RETRY_AFTER_S": "",
+        "MOCK_FAIL_STATUS": "",
+        "MOCK_429_RATE": "",
+        "MOCK_LATENCY_MS": "60",
+        "MOCK_HOST": "0.0.0.0",
+        "MOCK_PORT": "9000"
+      }
+    }
+  ],
+  "compose_files": [
+    "docker-compose.base.yml"
+  ],
+  "config_snapshot": [],
+  "host": {
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1",
+    "cpu_cores": 8,
+    "memory_bytes": 17179869184
+  },
+  "docker": {
+    "server_version": "25.0.3",
+    "operating_system": "Docker Desktop",
+    "architecture": "aarch64",
+    "ncpu": 8,
+    "mem_total_bytes": 8222334976,
+    "storage_driver": "overlay2"
+  },
+  "notes": [
+    "Read results from the per-step sub-metrics in summary.json (e.g. http_req_duration{step:r500}); whole-run totals include warm-up and ramp.",
+    "resources.csv covers the whole run including warm-up; timestamps are unix seconds. k6.plan.t0_ms is when the load started."
+  ]
+}
