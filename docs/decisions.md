@@ -131,3 +131,83 @@ passes. `dropped_iterations` cannot be split per step (a dropped iteration never
 starts), so the table uses the achieved request rate per step to show saturation.
 The k6 tag for the benchmark scenario is `bench_scenario`, because k6 already
 uses `scenario` for its executor name.
+
+## D11 - LiteLLM: image, workers, what "minimal" means
+
+**Image: `ghcr.io/berriai/litellm:v1.109.0`**, index digest
+`sha256:26aecfb02fb17ac6590f0549478561f9fbb3f69314317320b2e32a21beed4006`
+(linux/arm64 manifest `sha256:c46e66a77104a6e2f006cdd76b30becc49a5c60647f98f8ced30d25d6fbf53d7`,
+image id `sha256:6f8516908206...`). Chosen on 2026-11-11 as the newest non-prerelease
+GitHub release (v1.109.0, published the same day; v1.110.0 was still `-rc.1`). It is a
+multi-arch image with a native arm64 manifest, so nothing runs under emulation. The
+plain `litellm` image is used for both profiles (the separate `litellm-database`
+image is not needed: the plain image connects to Postgres and applies its schema when
+`DATABASE_URL` is set, as the prod smoke test shows). v1.108.5 (arm64 too) is
+the fallback if v1.109.0 turns out to have a regression; the digest is recorded in
+every run's `metadata.json`.
+
+**Workers: 2, from `LITELLM_WORKERS`** (`--num_workers`), matching the 2 CPUs of the
+gateway container. Not tuned: story #8 sets the final value and records it. Python
+workers are separate processes, so one worker cannot use two cores. `verify.sh`
+counts the worker processes to confirm the setting took effect.
+
+**Model alias.** `mock-gpt` maps to `openai/mock-upstream` with
+`api_base: http://mock-llm:9000/v1`, and per-token prices in `model_info` (1 and 2
+USD per million input and output tokens). The mock is not in LiteLLM's price
+list, so without prices every cost would be 0 and spend tracking would have nothing
+to show. Both profiles have the same prices, so both do the same cost arithmetic.
+
+**What minimal turns off.** No `DATABASE_URL` (so no key store, no spend logs, no
+UI), no Redis, `callbacks`/`success_callback`/`failure_callback` empty,
+`disable_spend_logs: true`, `turn_off_message_logging: true`, no response cache,
+`num_retries: 0` (both profiles: the mock should be the only source of latency).
+Authentication is the master key only. LiteLLM still loads its own built-in hooks
+(parallel-request limiter, budget limiter, cache control check and so on; about ten
+classes in `/active/callbacks`) with or without a database. They cannot be
+switched off by config and are part of what "LiteLLM minimal" costs. `verify.sh`
+therefore checks for the absence of logging, tracing and spend callbacks (Langfuse,
+OTel, Prometheus, `_ProxyDBLogger`), not for an empty list.
+
+**Log level.** `LITELLM_LOG=ERROR` in both profiles, so the proxy does not write a
+line per request. Recorded in `compose.resolved.yml`.
+
+**Gateway-reported overhead.** `x-litellm-overhead-duration-ms` is present on every
+response in both profiles. k6 records it as the Trend `gateway_overhead_ms`
+(`k6/lib/chat.js`), per step like the other metrics, and `scripts/summarize.py`
+prints it under its own heading as gateway-reported (contract rule 3). It measures
+time spent inside LiteLLM, so under overload it includes queueing in the proxy and
+grows with load (it is not a constant per-request cost).
+
+## D12 - LiteLLM prod profile: virtual key, Redis, setup container
+
+**Services (stack total counted under contract rule 1):** `litellm` 2 CPU / 2 GB,
+`litellm-postgres` (postgres:17.6-alpine3.22) 1 CPU / 1 GB, `litellm-redis`
+(redis:8.2.2-alpine3.22, no persistence) 1 CPU / 512 MB, `litellm-setup` 0.25 CPU /
+128 MB. Stack limits are 4.25 CPU / 3.6 GB; what is actually used is in
+`resources.csv`.
+
+**Virtual key.** The `litellm-setup` container calls `/key/generate` with the master
+key and a fixed dummy value (`sk-gwbench-virtual`), so k6 can use it without reading
+it back. The key is limited to the `mock-gpt` model, has `max_budget` 1,000,000 USD
+(never reached: it exists so the budget check runs on every request, S7 changes the
+budget) and a 30-day budget duration. k6 uses this key in the prod profile; the
+master key is used only for admin calls.
+
+**Setup container idles instead of exiting.** `docker compose up --wait` treats an
+exited container as a failure, even with exit code 0, and the runner needs `up
+--wait`. So the setup container creates the key, writes a ready file and then
+sleeps; its healthcheck goes green once the key exists, and the proxy's own
+healthcheck gates the setup, so the key exists before the smoke request. It reuses
+the LiteLLM image (it has python), so no extra image is pulled.
+
+**Spend tracking is on** (`disable_spend_logs: false`, `_ProxyDBLogger` loaded).
+Spend is written to Postgres in batches (`proxy_batch_write_at: 10` seconds, the
+default is 60) so `verify.sh` can see it within a short run; key spend and spend logs
+are what it checks. With Redis configured LiteLLM also keeps its spend and
+rate-limit counters there (`spend:key:*`, `{api_key:...}:tokens`), which is the part
+of Redis a request touches. Redis is not a response cache (`cache: false`): every
+request still reaches the mock.
+
+**Hook for S6 (Langfuse).** `config.prod.yaml` has empty `callbacks`,
+`success_callback` and `failure_callback`; the Langfuse callback and its keys go
+there and in the compose overlay's `litellm.environment`.

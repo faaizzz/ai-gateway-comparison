@@ -54,6 +54,9 @@ the caller's environment, see `docker-compose.base.yml`.
   the gateway wants), see `mock-llm/README.md`.
 - Do not publish ports unless you need them for debugging, and then only on
   `127.0.0.1`.
+- `docker compose up --wait` counts an exited container as a failure, even with exit
+  code 0. A one-time setup step (creating a key) therefore has to idle after it is done
+  and report through a healthcheck (see `litellm-setup`).
 - Keep gateway state inside the stack's compose volumes: the runner tears down
   with `down -v`, so every run starts from a clean database.
 
@@ -87,7 +90,8 @@ mock cannot pass.
 1. `gateways/<name>/target.env` per the table above.
 2. Overlay compose file(s) following the rules above.
 3. A `verify.sh` for each profile's claims.
-4. `make lint` (validates the overlay) and `make smoke TARGET=<name>`.
+4. `make lint` (validates the overlay and shellchecks `verify.sh`) and
+   `scripts/smoke.sh <name> [profile]` (up, plain and streaming request, verify, down).
 5. `make run TARGET=<name> SCENARIO=s1 RATE=100 DURATION=20` as a quick end-to-end
    check before real runs.
 
