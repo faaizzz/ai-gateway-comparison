@@ -767,3 +767,56 @@ ladder would only show "at least 8000". S10 continues to 10000, 12000 and 16000 
 any gateway that sustains 8000, as long as k6 stays under 4 cores (D17). The direct
 baseline at those rates comes from the S1 ramp (D8, held 20000) and the extended
 baseline from #8 (`results/2026-11-11/direct/none/s1-extended/`).
+
+## D27 - S2 to S5 scenario design: rates, chunk counting, closed loop, payload sizes
+
+**S2** is the S1 ladder (100, 250, 500, 1000 RPS, D8) through each target, 60 s per step after
+a 15 s warm-up, mock `MOCK_LATENCY_MS=60`, minimal profile. Saturated steps are marked with
+`scripts/sustained.py`'s rules (D15 + D24) and left out of the latency tables
+(`scripts/summary_tables.py` applies the same thresholds).
+
+**S3 streaming rates: 50 and 100 RPS.** A first try at a single 100 RPS step showed that tuned
+LiteLLM (D25) does not hold 100 streams per second (CPU at its 2 cores, 74 % of the target rate
+achieved, p50 1.5 s), although it holds 300 non-streaming requests per second: it handles every
+chunk in Python. A short LiteLLM-only run (20 s steps, scratch, not committed) gave 20, 35, 50, 65
+RPS all sustained (stream total p50 312 to 320 ms against 297 ms direct; p99 up to 446 ms at 50
+and 380 at 65) and 80 RPS with a p95 of 637 ms (queueing). The headline streaming step is
+therefore **50 RPS**, which every target holds. A second step at **100 RPS** is run for everyone
+(same steps for all, D15): it shows who still holds it, and LiteLLM is marked saturated there.
+About 15 streams are open at once at 50 RPS and 30 at 100 RPS (a stream lasts about 300 ms).
+
+**S3 measurements.** xk6-sse gives no TTFT, so the script times the events itself with
+`exec.instance.currentTestRunDuration` (milliseconds with a fraction; k6 has no
+`performance.now()`). The timer starts just before `sse.open`, so TTFT includes connection
+setup, the same for every target; compare with the direct run, not with the mock's 20 ms.
+- **TTFT** is the time to the first content delta that is not empty. The mock's first event is a
+  role chunk with `content: ""`, which is skipped, and so are the finish chunk (empty delta) and the
+  usage chunk (no choices). A gateway that sends something else first is not credited for it.
+- **Chunk counting.** A chunk is an SSE event whose `choices[0].delta.content` is a non-empty string.
+  The inter-chunk gap is the time between two consecutive such events; one sample per gap,
+  so p50, p99 and max are over all gaps of all streams in the step. The largest gap of every stream
+  is a separate trend. Two events that arrive in one network read give a gap near 0 ms (the direct
+  run has a few), which is how the client sees it.
+- **Fidelity** is the share of streams that carry exactly `MOCK_OUTPUT_TOKENS` (default 40)
+  content chunks (the runner passes the mock's value to k6 as `EXPECT_CHUNKS`), the exact text of
+  that many `token ` words, a `finish_reason: "stop"` and `[DONE]`. It is judged against the mock's
+  configuration, not against the direct run. The final usage chunk is counted separately
+  (`stream_usage`) because a gateway may legitimately rewrite or drop it.
+- `http_req_duration` of an SSE request is the whole stream, so the sustained rules use it (p50 at
+  most 2x the direct S3 p50 at the same step).
+
+**S4 is closed loop.** 1, 10, 100 and 1000 virtual users in one k6 `ramping-vus` scenario, 60 s per
+level after a 10 s warm-up (10 virtual users) and a 5 s ramp, no think time, non-streaming. Every table is
+labelled closed-loop. There is no target rate, so the sustained rules do not apply: the table flags
+errors and a k6 that uses 4 or more cores. At 1000 virtual users the direct baseline already needs
+about 3.5 cores of k6 (S4 direct: about 14,900 RPS), so that level is partly limited by the load
+generator for any target that is faster than the 2-CPU gateways; the flag says so.
+
+**S5 payload sweep: 100 RPS.** Request bodies of 1,024, 10,240 and 102,400 bytes in total (the user
+message is padded with fixed text; the JSON is the same bytes for every target), one step each at
+100 RPS, which every gateway sustains (LiteLLM holds about 300, D25), 60 s per step after a 15 s warm-up. The answer is
+the mock's default 40 tokens. The padding is plain text, so the sizes do not exercise
+JSON escaping. **Response size** is a separate, optional pair of runs (`s5-resp10k`,
+`s5-resp100k`): one 100 RPS step with the small request while the mock is started with
+`MOCK_OUTPUT_TOKENS=1700` (about 10 KB) or `17000` (about 100 KB); the knob is a mock start-up
+setting, so each size is its own run on a fresh stack, once per target.

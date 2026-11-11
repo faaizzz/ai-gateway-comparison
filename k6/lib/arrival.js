@@ -20,6 +20,11 @@
 //   STEP_S        seconds per measured step
 //   WARMUP_S      warm-up seconds, at the first rate
 //   PRE_VUS, MAX_VUS   VU pool; defaults scale with the highest rate
+//
+// Scenarios that hold the rate and change something else per step (S5: payload size) pass
+// `stepNames` (one name per rate, replacing r<rate>) and `stepInfo` (extra fields copied into
+// the plan's step, e.g. the body size). Scenarios with their own metrics (S3) pass
+// `extraMetrics` ({name: threshold}) to arrivalOptions so those get per-step sub-metrics too.
 import exec from 'k6/execution';
 import { envList, envNumber, GLOBAL_TAGS } from './env.js';
 
@@ -35,9 +40,12 @@ const SUB_METRICS = {
   gateway_overhead_ms: 'max>=0',
 };
 
-export function buildPlan({ defaultRates, defaultStepS = 60, defaultWarmupS = 15 }) {
-  const rates = envList('RATES', defaultRates);
+export function buildPlan({ defaultRates, defaultStepS = 60, defaultWarmupS = 15, stepNames = null, stepInfo = null }) {
+  let rates = envList('RATES', defaultRates);
   if (rates.length === 0) throw new Error('RATES is empty');
+  // `--rate 50` on a scenario with named steps at one rate: the same rate in every step
+  if (stepNames && rates.length === 1) rates = stepNames.map(() => rates[0]);
+  if (stepNames && rates.length !== stepNames.length) throw new Error('RATES needs one value or one per step');
   const stepS = envNumber('STEP_S', defaultStepS);
   const warmupS = envNumber('WARMUP_S', defaultWarmupS);
   const maxRate = Math.max.apply(null, rates);
@@ -50,12 +58,13 @@ export function buildPlan({ defaultRates, defaultStepS = 60, defaultWarmupS = 15
     steps.push({ name: 'warmup', phase: 'warmup', rate: rates[0], fromS: 0, toS: warmupS });
     t = warmupS;
   }
-  rates.forEach((rate) => {
+  rates.forEach((rate, i) => {
     stages.push({ target: rate, duration: `${RAMP_S}s` });
     steps.push({ name: 'ramp', phase: 'ramp', rate, fromS: t, toS: t + RAMP_S });
     t += RAMP_S;
     stages.push({ target: rate, duration: `${stepS}s` });
-    steps.push({ name: `r${rate}`, phase: 'measure', rate, fromS: t, toS: t + stepS });
+    const name = stepNames ? stepNames[i] : `r${rate}`;
+    steps.push(Object.assign({ name, phase: 'measure', rate, fromS: t, toS: t + stepS }, stepInfo ? stepInfo[i] : {}));
     t += stepS;
   });
 
@@ -73,15 +82,23 @@ export function buildPlan({ defaultRates, defaultStepS = 60, defaultWarmupS = 15
   };
 }
 
-export function arrivalOptions(plan) {
+// Thresholds that always pass, one per metric and measured step, so k6 writes the
+// `metric{step:<name>}` sub-metrics into summary.json. Shared with k6/lib/closed.js.
+export function subMetricThresholds(plan, extraMetrics = {}) {
   const thresholds = {};
+  const metrics = Object.assign({}, SUB_METRICS, extraMetrics);
   plan.steps
     .filter((s) => s.phase === 'measure')
     .forEach((s) => {
-      Object.keys(SUB_METRICS).forEach((m) => {
-        thresholds[`${m}{step:${s.name}}`] = [SUB_METRICS[m]];
+      Object.keys(metrics).forEach((m) => {
+        thresholds[`${m}{step:${s.name}}`] = [metrics[m]];
       });
     });
+  return thresholds;
+}
+
+export function arrivalOptions(plan, extraMetrics = {}) {
+  const thresholds = subMetricThresholds(plan, extraMetrics);
   return {
     scenarios: {
       steps: {

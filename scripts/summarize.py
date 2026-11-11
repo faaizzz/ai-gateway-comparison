@@ -77,10 +77,11 @@ def summarize(run_dir):
             print(f"{name:>8} (no data)")
             continue
         achieved = reqs.get("count", 0) / (s["toS"] - s["fromS"])
+        label = s["rate"] if s.get("rate") is not None else f"{s['vus']}vu"
         fail = failed.get("rate", failed.get("value", 0)) if failed else 0
         c = " ".join(f"{short(k)}={v:.0f}" for k, v in sorted(cpu.get(name, {}).items()) if "sampler" not in k)
         print(
-            f"{name:>8} {s['rate']:>7} {achieved:>9.1f} {dur['med']:>8.2f} {dur['p(95)']:>8.2f} "
+            f"{name:>8} {label:>7} {achieved:>9.1f} {dur['med']:>8.2f} {dur['p(95)']:>8.2f} "
             f"{dur['p(99)']:>8.2f} {dur['max']:>8.1f} {fail * 100:>6.2f}%  {c}"
         )
     rows = []

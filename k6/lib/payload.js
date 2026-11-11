@@ -12,3 +12,12 @@ export function chatBody({ model, stream = false, promptChars = 0, maxTokens = 0
   if (maxTokens > 0) body.max_tokens = maxTokens;
   return JSON.stringify(body);
 }
+
+// A non-streaming body of about `bytes` bytes in total (the JSON as sent), for the payload
+// sweep (S5). The padding is deterministic text in the user message, so every target gets the
+// same bytes.
+export function chatBodyOfSize({ model, bytes }) {
+  const base = chatBody({ model }).length;
+  // chatBody adds one space plus promptChars characters
+  return chatBody({ model, promptChars: Math.max(1, bytes - base - 1) });
+}

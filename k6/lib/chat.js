@@ -45,9 +45,10 @@ const HEADERS = {
 // Built once per VU, not per request, so body generation costs no CPU in the loop.
 let cachedBody = null;
 
-export function chatOnce({ promptChars = 0, extraHeaders = {} } = {}) {
-  if (cachedBody === null) cachedBody = chatBody({ model: MODEL, promptChars });
-  const res = http.post(`${TARGET_URL}/chat/completions`, cachedBody, {
+// `body` (a ready JSON string) replaces the default body; S5 passes one per payload size.
+export function chatOnce({ promptChars = 0, extraHeaders = {}, body = null } = {}) {
+  if (body === null && cachedBody === null) cachedBody = chatBody({ model: MODEL, promptChars });
+  const res = http.post(`${TARGET_URL}/chat/completions`, body !== null ? body : cachedBody, {
     headers: Object.assign({}, HEADERS, extraHeaders),
     timeout: REQUEST_TIMEOUT,
   });

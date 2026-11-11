@@ -124,7 +124,8 @@ k6_target_env() {
   printf '%s\n' \
     -e "TARGET_URL=$TARGET_BASE_URL" -e "MODEL=$TARGET_MODEL" -e "API_KEY=$TARGET_API_KEY" \
     -e "HEALTH_URL=$TARGET_HEALTH_URL" \
-    -e "BENCH_TARGET=$TARGET" -e "BENCH_PROFILE=$PROFILE"
+    -e "BENCH_TARGET=$TARGET" -e "BENCH_PROFILE=$PROFILE" \
+    -e "EXPECT_CHUNKS=${MOCK_OUTPUT_TOKENS:-40}"
 }
 
 # gw_smoke: runs k6/smoke_target.js until it passes or TARGET_SMOKE_TIMEOUT_S

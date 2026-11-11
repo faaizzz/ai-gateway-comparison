@@ -4,3 +4,9 @@
 # Then `make run TARGET=<t> SCENARIO=<id>` works. Lines starting with # are ignored.
 s1       s1_baseline.js  Baseline: direct to the mock at the rate ladder (open loop)
 s1-ramp  s1_ramp.js      Mock capacity check: direct to the mock at rising rates
+s2           s2_equal_rate.js   Equal-rate steps: the S1 ladder (100, 250, 500, 1000 RPS) through a target, non-streaming (open loop, headline)
+s3           s3_streaming.js    Streaming: SSE at 50 and 100 RPS, TTFT, inter-chunk gaps, chunk fidelity (open loop)
+s4           s4_concurrency.js  Concurrency sweep: 1, 10, 100, 1000 virtual users, CLOSED LOOP (not a headline number)
+s5           s5_payload.js      Payload sweep: request bodies of 1 KB, 10 KB and 100 KB at a fixed 100 RPS (open loop)
+s5-resp10k   s5_response.js     Response size: 100 RPS, mock answers about 10 KB; run with MOCK_OUTPUT_TOKENS=1700
+s5-resp100k  s5_response.js     Response size: 100 RPS, mock answers about 100 KB; run with MOCK_OUTPUT_TOKENS=17000
