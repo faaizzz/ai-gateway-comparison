@@ -116,6 +116,20 @@ def containers():
     return out
 
 
+def other_containers():
+    """Running containers that are not part of this benchmark (name does not start with gwbench-).
+
+    They share the Docker VM and can add noise (D20), so the run records them.
+    """
+    out = []
+    for line in run(["docker", "ps", "--format", "{{.Names}}\t{{.Image}}\t{{.Status}}"]).splitlines():
+        name, _, rest = line.partition("\t")
+        if name and not name.startswith("gwbench-"):
+            image, _, status = rest.partition("\t")
+            out.append({"name": name, "image": image, "status": status})
+    return sorted(out, key=lambda c: c["name"])
+
+
 def parse_plan(log_path):
     """The k6 script prints `GWBENCH_PLAN {json}` in setup() (see k6/lib/arrival.js)."""
     try:
@@ -205,6 +219,7 @@ def main():
         "mock_knobs": mock_env,
         "images": [image_details(r) for r in compose_images(compose_args)],
         "containers": conts,
+        "other_running_containers": other_containers(),
         "compose_files": a.compose_files.split(),
         "config_snapshot": snapshot,
         "host": host_info(),

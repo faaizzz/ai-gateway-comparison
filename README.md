@@ -34,14 +34,14 @@ Needs Docker only (plus Python 3 for the metadata step). Run `make help` for tar
 make run TARGET=direct SCENARIO=s1                  # S1 baseline at the rate ladder, about 5 min
 make run TARGET=direct SCENARIO=s1 REPEAT=3         # three independent runs, each on a fresh stack
 make run TARGET=direct SCENARIO=s1-ramp             # mock capacity check, about 3 min
-make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=20 WARMUP=5   # quick end-to-end check
+make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=20 WARMUP=5 DATE=scratch-x   # quick check, written to results/scratch-x/ (gitignored)
 make up TARGET=<gateway> PROFILE=prod; make smoke TARGET=<gateway>; make down   # by hand
 scripts/smoke.sh litellm prod                       # up, plain + streaming request, mode check, down
 scripts/smoke.sh bifrost minimal                    # same for Bifrost (log store verified off)
 scripts/smoke.sh langfuse prod                      # same for Langfuse (8 containers, about 2 min to start)
 ```
 
-`make run` calls `scripts/run.sh <target> <scenario> [--profile minimal|prod] [--repeat N] [--duration S] [--rate R[,R...]] [--warmup S] [--raw] [--keep]`. Per run it starts the mock and the target stack, waits for health, sends a smoke request and runs the target's `verify.sh`, starts the resource sampler, runs k6 (warm-up excluded), writes the metadata and tears the stack down. Defaults: 15 s warm-up and 60 s per step (S1 ramp: 10 s and 15 s), so S1 at the four-step ladder takes about 5 minutes. The decisions behind the durations and rates are in [docs/decisions.md](docs/decisions.md) (D8).
+`make run` calls `scripts/run.sh <target> <scenario> [--profile minimal|prod] [--repeat N] [--duration S] [--rate R[,R...]] [--warmup S] [--raw] [--keep] [--date D]` (`make run ... DATE=D`; results go to `results/<D>/`, today's date by default, and `results/scratch*/` is gitignored, so short and trial runs use a `scratch-*` name). Per run it starts the mock and the target stack, waits for health, sends a smoke request and runs the target's `verify.sh`, starts the resource sampler, runs k6 (warm-up excluded), writes the metadata and tears the stack down. Defaults: 15 s warm-up and 60 s per step (S1 ramp: 10 s and 15 s), so S1 at the four-step ladder takes about 5 minutes. The decisions behind the durations and rates are in [docs/decisions.md](docs/decisions.md) (D8).
 
 Results land in `results/<YYYY-MM-DD>/<target>/<profile>/<scenario>/run-<n>/`:
 

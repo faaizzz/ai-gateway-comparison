@@ -27,7 +27,7 @@ jobs:
       - run: make k6-build
       - run: make base-smoke
       # The runner end to end on the direct target: stack up, smoke, k6, metadata, summary.
-      - run: make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=5 WARMUP=2
+      - run: make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=5 WARMUP=2 DATE=scratch-ci
       - if: always()
         run: make base-down
 

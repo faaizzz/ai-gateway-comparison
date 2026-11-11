@@ -6,3 +6,5 @@ node_modules/
 target/
 __pycache__/
 results/base-smoke/
+# short and trial runs (make run ... DATE=scratch-x); never committed
+results/scratch*/
