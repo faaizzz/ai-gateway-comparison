@@ -12,6 +12,14 @@ Contract for targets: [gateways/README.md](../README.md).
 | Auth | none enforced; governance plugin not loaded | virtual key `sk-bf-gwbench-virtual`, provider `openai`, model `mock-gpt`, budget 1,000,000 USD, `enforce_auth_on_inference` |
 | Gateway limits | 2 CPU / 2 GB | 2 CPU / 2 GB (the whole stack) |
 
+**Variants for S6 to S8 (D28)**, thin overlays (only the mounted config differs):
+
+| Profile | Built from | Difference | Scenario |
+| --- | --- | --- | --- |
+| `logs` | `minimal` | `logs_store` on (SQLite `logs.db`) and `enable_logging` true; config store, telemetry and governance stay off | S6 |
+| `prod-rl` | `prod` | a `governance.rate_limits` entry on the virtual key (10,000,000 requests and 10,000,000,000 tokens per hour), never hit | S7 |
+| `retry` | `minimal` | provider `network_config.max_retries: 2` | S8 |
+
 Image `maximhq/bifrost:v2.5.1` (arm64, digest in D13). Provider `openai` with
 `base_url: http://mock-llm:9000` (**no `/v1`**: Bifrost appends `/v1/chat/completions`
 itself). k6 base URL `http://bifrost:8080/v1`, route `POST /v1/chat/completions`, model

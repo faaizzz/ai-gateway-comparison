@@ -12,6 +12,11 @@ Contract for targets: [gateways/README.md](../README.md).
 | Auth | gateway key `sk-lf-gwbench-gateway-key` (resolved by Web on every request) | same |
 | Gateway limit | 2 CPU / 2 GB | 2 CPU / 2 GB |
 
+S6 adds a third profile, `full` (ingestion mode FULL, otherwise the same stack as `prod`). The Langfuse
+AI gateway has no retries and no key rate limit (known beta limitations), so it has no S7 rate-limit or
+S8 retry profile. The same Langfuse stack is also the tracing backend of the LiteLLM profile
+`prod-langfuse` (`gateways/litellm/`); `traces.py` counts and times the traces for both (S6).
+
 The two profiles run the same containers. Langfuse Web has to be up in both because the
 gateway asks it to resolve every request (the control plane); what the profiles switch is
 whether the gateway sends traces. So "minimal" here means "no tracing", not "no Langfuse".

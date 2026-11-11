@@ -55,7 +55,7 @@ Results land in `results/<YYYY-MM-DD>/<target>/<profile>/<scenario>/run-<n>/`:
 | `k6.log`, `compose.resolved.yml`, `config/` | k6 console output, resolved compose config, snapshot of the gateway's config files |
 | `raw/` | Per-request k6 output, only with `--raw`; git-ignored |
 
-`scripts/summarize.py <run-dir>` prints a per-step table (achieved rate, p50/p95/p99, errors, CPU). `scripts/sustained.py <run-dir>` marks each step sustained or saturated (D15, D24). `scripts/summary_tables.py results/<date>` writes the per-scenario side-by-side tables for S2 to S5 (`SUMMARY-S2-S5.md` and `.json` in that folder). `direct` is the S1 baseline target (no gateway, profile `none`).
+`scripts/summarize.py <run-dir>` prints a per-step table (achieved rate, p50/p95/p99, errors, CPU). `scripts/sustained.py <run-dir>` marks each step sustained or saturated (D15, D24). `scripts/summary_tables.py results/<date>` writes the per-scenario side-by-side tables for S2 to S5 (`SUMMARY-S2-S5.md` and `.json` in that folder); `--set s6-s10` writes `SUMMARY-S6-S10.md` (S6 tracing on/off, S7 auth, S8 faults, S9 soak, S10 max rate; sweeps: `scripts/sweep-s10.sh`, S9: `make run ... SCENARIO=s9 DURATION=300 RATE=100`, the run plan is D28). `direct` is the S1 baseline target (no gateway, profile `none`).
 
 Adding a gateway or a scenario: [gateways/README.md](gateways/README.md).
 

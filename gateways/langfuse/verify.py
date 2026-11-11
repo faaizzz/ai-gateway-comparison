@@ -33,7 +33,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 PROFILE = os.environ.get("PROFILE", "prod")
-MODE = os.environ.get("LANGFUSE_INGESTION_MODE") or ("USAGE" if PROFILE == "prod" else "NONE")
+MODE = os.environ.get("LANGFUSE_INGESTION_MODE") or {"prod": "USAGE", "full": "FULL"}.get(PROFILE, "NONE")
 GATEWAY = f"http://127.0.0.1:{os.environ.get('LANGFUSE_GATEWAY_HOST_PORT', '18081')}"
 WEB = f"http://127.0.0.1:{os.environ.get('LANGFUSE_WEB_HOST_PORT', '13030')}"
 KEY = "sk-lf-gwbench-gateway-key"  # TARGET_API_KEY in target.env

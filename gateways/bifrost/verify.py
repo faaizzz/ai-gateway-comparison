@@ -18,6 +18,9 @@ published on loopback by the compose overlays) and to Docker through the CLI.
                  file grows during a burst and the logs API lists the burst with the
                  virtual key on every row, governance refuses a missing or wrong key and
                  charges the budget, telemetry answers on /metrics
+  variants (D28) retry = the minimal checks plus max_retries 2; logs = log store ON (SQLite)
+                 and logging on but no config store, no telemetry, no governance; prod-rl =
+                 the prod checks plus a rate limit on the virtual key (never hit)
 """
 
 import json
@@ -117,7 +120,8 @@ def db_files(files):
 
 
 print(f"verify bifrost/{PROFILE}")
-key = VIRTUAL_KEY if PROFILE == "prod" else OPEN_KEY
+FAMILY = {"minimal": "minimal", "retry": "minimal", "logs": "logs", "prod": "prod", "prod-rl": "prod"}[PROFILE]
+key = VIRTUAL_KEY if FAMILY == "prod" else OPEN_KEY
 
 # ---- both profiles ---------------------------------------------------------
 running = sh("docker", "inspect", "-f", "{{.State.Running}}", GW)[1]
@@ -184,7 +188,10 @@ check(
 )
 
 # ---- minimal ---------------------------------------------------------------
-if PROFILE == "minimal":
+if FAMILY == "minimal":
+    want_retries = 2 if PROFILE == "retry" else 0
+    got_retries = conf.get("providers", {}).get("openai", {}).get("network_config", {}).get("max_retries")
+    check(f"config.json: provider max_retries is {want_retries}", got_retries == want_retries, got_retries)
     check("config.json: config_store.enabled is false", conf.get("config_store", {}).get("enabled") is False)
     check("config.json: logs_store.enabled is false", conf.get("logs_store", {}).get("enabled") is False)
     check("config.json: client.enable_logging is false", conf.get("client", {}).get("enable_logging") is False)
@@ -217,8 +224,36 @@ if PROFILE == "minimal":
     extra = [n for n in others if n not in (GW, "gwbench-mock-llm") and not n.startswith(("gwbench-k6", "gwbench-sampler"))]
     check("no other gateway-stack container (no database or setup container)", not extra, extra)
 
+# ---- logs: log store on, nothing else ---------------------------------------------
+if FAMILY == "logs":
+    check("config.json: config_store.enabled is false", conf.get("config_store", {}).get("enabled") is False)
+    check("config.json: logs_store is enabled (sqlite)", conf.get("logs_store", {}).get("enabled") is True)
+    check("/api/config reports enable_logging true", client.get("enable_logging") is True, client)
+    before = data_files()
+    names = sorted(os.path.basename(p) for p in db_files(before))
+    print(f"  data dir before the burst: {sorted(before)}")
+    check("logs.db exists and no config.db (only the log store is on)", any(n.startswith("logs.db") for n in names) and not any(n.startswith("config.db") for n in names), names)
+    st, _, b = admin("/api/logs?limit=1")
+    base_total = b.get("pagination", {}).get("total_count", 0) if st == 200 and isinstance(b, dict) else -1
+    check(f"logs API answers 200 (the log store is on), got {st}", st == 200)
+    statuses = [chat(key)[0] for _ in range(BURST)]
+    check(f"{BURST} requests all answered 200", statuses == [200] * BURST, sorted(set(statuses)))
+    total, deadline = base_total, time.time() + 30
+    while time.time() < deadline:
+        st, _, b = admin("/api/logs?limit=1")
+        if st == 200 and isinstance(b, dict):
+            total = b.get("pagination", {}).get("total_count", 0)
+            if total >= base_total + BURST:
+                break
+        time.sleep(1)
+    check(f"logs API lists the burst: total_count {base_total} -> {total} (at least +{BURST})", total >= base_total + BURST)
+    st, _, _ = admin("/metrics")
+    check(f"/metrics does not exist (telemetry plugin off), got HTTP {st}", st == 404)
+    st, _, _ = admin("/api/governance/virtual-keys")
+    check(f"no governance (virtual keys API absent), got HTTP {st}", st == 404)
+
 # ---- prod ------------------------------------------------------------------
-if PROFILE == "prod":
+if FAMILY == "prod":
     check("config.json: config_store is enabled (sqlite)", conf.get("config_store", {}).get("enabled") is True)
     check("config.json: logs_store is enabled (sqlite)", conf.get("logs_store", {}).get("enabled") is True)
     check("/api/config reports enable_logging true and enforce_auth_on_inference true", client.get("enable_logging") is True and client.get("enforce_auth_on_inference") is True)
@@ -282,6 +317,12 @@ if PROFILE == "prod":
     check(f"virtual key 'gwbench' is stored in the config store (keys: {names})", "gwbench" in names)
     st, _, b = admin("/metrics")
     check(f"/metrics answers with bifrost_ series (telemetry plugin on), got HTTP {st}", st == 200 and isinstance(b, str) and "bifrost_" in b)
+    if PROFILE == "prod-rl":
+        check("config.json: the key has a rate_limit_id and governance.rate_limits is set", bool(conf.get("governance", {}).get("rate_limits")) and bool(conf["governance"]["virtual_keys"][0].get("rate_limit_id")))
+        st, _, b = admin("/api/governance/virtual-keys")
+        vk = (b.get("virtual_keys") or [{}])[0] if st == 200 and isinstance(b, dict) else {}
+        print(f"  virtual key rate limit: {vk.get('rate_limit_id')} / {vk.get('rate_limit')}")
+        check("the running virtual key has a rate limit attached", bool(vk.get("rate_limit_id") or vk.get("rate_limit")))
 
 if fails:
     print(f"verify bifrost/{PROFILE}: {fails} check(s) FAILED", file=sys.stderr)

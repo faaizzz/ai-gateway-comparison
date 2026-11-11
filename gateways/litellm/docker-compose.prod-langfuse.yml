@@ -1,0 +1,23 @@
+# ci-with: gateways/litellm/docker-compose.prod.yml gateways/langfuse/compose.yml
+# LiteLLM, profile "prod-langfuse" (S6): the prod overlay plus the Langfuse stack as the tracing
+# backend. Apply order: prod, gateways/langfuse/compose.yml, this file. This is the one allowed
+# case of two stacks at once (D28): the Langfuse Web, worker and stores are LiteLLM's tracing
+# backend, not a second gateway under test, so the Langfuse AI Gateway and its setup container
+# are moved behind a compose profile that is never enabled. The project and its keys come from
+# LANGFUSE_INIT_* on Web (pk-lf-gwbench-local / sk-lf-gwbench-local).
+services:
+  litellm:
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+    environment:
+      LANGFUSE_PUBLIC_KEY: pk-lf-gwbench-local # local dummy value
+      LANGFUSE_SECRET_KEY: sk-lf-gwbench-local # local dummy value
+      LANGFUSE_HOST: http://langfuse-web:3000
+    volumes:
+      - ./gateways/litellm/config.prod-langfuse.yaml:/app/config.yaml:ro
+  # The Langfuse AI Gateway is not part of this target.
+  langfuse-ai-gateway:
+    profiles: ["langfuse-gateway-disabled"]
+  langfuse-setup:
+    profiles: ["langfuse-gateway-disabled"]

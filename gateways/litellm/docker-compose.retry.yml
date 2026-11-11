@@ -1,0 +1,7 @@
+# ci-with: gateways/litellm/docker-compose.minimal.yml
+# LiteLLM, profile "retry" (S8): the minimal overlay (apply it first) with the config that
+# retries twice. Only the mounted config differs.
+services:
+  litellm:
+    volumes:
+      - ./gateways/litellm/config.retry.yaml:/app/config.yaml:ro

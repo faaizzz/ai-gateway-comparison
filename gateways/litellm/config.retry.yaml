@@ -1,0 +1,35 @@
+# LiteLLM proxy, profile "retry" (S8, D28): the minimal profile plus 2 retries.
+# Everything else is identical to config.minimal.yaml (no database, no callbacks, no Redis).
+model_list:
+  - model_name: mock-gpt
+    litellm_params:
+      model: openai/mock-upstream
+      api_base: http://mock-llm:9000/v1
+      api_key: sk-mock-upstream # the mock accepts any key; local dummy value
+    # Per-token prices so a request has a non-zero cost (the mock is not in
+    # LiteLLM's price list). Same in both profiles, so both do the same cost math.
+    model_info:
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.000002
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Without DATABASE_URL the proxy keeps no spend logs or key store. Said
+  # explicitly so a later image default cannot turn it on.
+  disable_spend_logs: true
+
+litellm_settings:
+  # No callbacks, no success/failure hooks, no request logging.
+  callbacks: []
+  success_callback: []
+  failure_callback: []
+  turn_off_message_logging: true
+  # S8: the same retry count for every gateway that supports retries (2). The router retries
+  # on 429 and 5xx; its retry wait honours the Retry-After the mock sends.
+  num_retries: 2
+
+router_settings:
+  num_retries: 2
+  # One deployment only: a cooldown after a few failures would make the model unavailable for
+  # the whole proxy ("no healthy deployments") instead of testing retries, so it is off.
+  disable_cooldowns: true

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "config_store": {
+    "enabled": false
+  },
+  "logs_store": {
+    "enabled": false
+  },
+  "client": {
+    "enable_logging": false,
+    "enforce_auth_on_inference": false,
+    "initial_pool_size": 5000,
+    "drop_excess_requests": false
+  },
+  "plugins": [
+    {
+      "enabled": false,
+      "name": "telemetry"
+    }
+  ],
+  "framework": {
+    "pricing": {
+      "pricing_url": "file:///app/datasheet/pricing.json",
+      "model_parameters_url": "file:///app/datasheet/model-parameters.json",
+      "pricing_sync_interval": 86400
+    }
+  },
+  "providers": {
+    "openai": {
+      "keys": [
+        {
+          "name": "mock",
+          "value": "env.UPSTREAM_API_KEY",
+          "models": [
+            "*"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "network_config": {
+        "base_url": "http://mock-llm:9000",
+        "allow_private_network": true,
+        "max_retries": 2
+      },
+      "concurrency_and_buffer_size": {
+        "concurrency": 1000,
+        "buffer_size": 5000
+      }
+    }
+  }
+}

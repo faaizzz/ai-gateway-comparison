@@ -9,7 +9,8 @@ writes READY_FILE (the container healthcheck looks for it) and then idles, becau
 `docker compose up --wait` counts an exited container as a failure.
 
 Environment: LITELLM_URL, LITELLM_MASTER_KEY, VIRTUAL_KEY, KEY_MAX_BUDGET (USD),
-READY_FILE.
+READY_FILE, and optionally KEY_RPM_LIMIT, KEY_TPM_LIMIT, KEY_MAX_PARALLEL (the S7 rate limits,
+set far above the benchmark's load).
 Standard library only.
 """
 
@@ -25,6 +26,11 @@ MASTER = os.environ["LITELLM_MASTER_KEY"]
 KEY = os.environ["VIRTUAL_KEY"]
 BUDGET = float(os.environ.get("KEY_MAX_BUDGET", "1000000"))
 READY_FILE = os.environ.get("READY_FILE", "/tmp/key-ready")
+LIMITS = {
+    field: int(os.environ[var])
+    for field, var in (("rpm_limit", "KEY_RPM_LIMIT"), ("tpm_limit", "KEY_TPM_LIMIT"), ("max_parallel_requests", "KEY_MAX_PARALLEL"))
+    if os.environ.get(var)
+}
 
 
 def call(method, path, body=None):
@@ -52,6 +58,7 @@ def main():
                     "models": ["mock-gpt"],
                     "max_budget": BUDGET,
                     "budget_duration": "30d",
+                    **LIMITS,
                 },
             )
             break
@@ -71,7 +78,11 @@ def main():
     if info.get("max_budget") != BUDGET:
         print(f"setup-key: key has max_budget {info.get('max_budget')}, expected {BUDGET}", file=sys.stderr)
         return 1
-    print(f"setup-key: virtual key ready, max_budget={info['max_budget']}, spend={info.get('spend')}", flush=True)
+    for field, want in LIMITS.items():
+        if info.get(field) != want:
+            print(f"setup-key: key has {field} {info.get(field)}, expected {want}", file=sys.stderr)
+            return 1
+    print(f"setup-key: virtual key ready, max_budget={info['max_budget']}, spend={info.get('spend')}, limits={LIMITS}", flush=True)
     with open(READY_FILE, "w") as f:
         f.write("ok\n")
     while True:

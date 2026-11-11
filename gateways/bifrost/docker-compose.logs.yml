@@ -1,0 +1,7 @@
+# ci-with: gateways/bifrost/docker-compose.minimal.yml
+# Bifrost, profile "logs" (D28): the minimal overlay (apply it first) with config.logs.json mounted
+# instead. Only the mounted config differs.
+services:
+  bifrost:
+    volumes:
+      - ./gateways/bifrost/config.logs.json:/app/data/config.json:ro

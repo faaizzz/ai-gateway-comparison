@@ -12,6 +12,14 @@ Contract for targets: [gateways/README.md](../README.md).
 | Auth | master key (`sk-gwbench-master`) | virtual key (`sk-gwbench-virtual`), model `mock-gpt`, budget 1,000,000 USD |
 | Gateway limits | 2 CPU / 2 GB | 2 CPU / 2 GB; Postgres 1 CPU / 1 GB; Redis 1 CPU / 512 MB; setup 0.25 CPU / 128 MB |
 
+**Variants for S6 to S8 (D28)**, each a thin overlay on one of the two profiles above:
+
+| Profile | Built from | Difference | Scenario |
+| --- | --- | --- | --- |
+| `prod-langfuse` | `prod` + `gateways/langfuse/compose.yml` | `success_callback: [langfuse]`; the Langfuse Web, worker and stores run as the tracing backend (its AI gateway and setup container are disabled); whole stack counted | S6 |
+| `prod-rl` | `prod` | virtual key gets `rpm_limit`, `tpm_limit` and `max_parallel_requests` far above the load (`setup-key.py`) | S7 |
+| `retry` | `minimal` | `num_retries: 2` in `litellm_settings` and `router_settings`, cooldowns off (one deployment) | S8 |
+
 Image `ghcr.io/berriai/litellm:v1.109.0` (arm64, digest in D11). Server: Granian (`--run_granian`), workers `LITELLM_WORKERS`
 (default 2), both from the tuning pass (D25). Log level: `LITELLM_LOG` (default `ERROR`). Model alias `mock-gpt`
 (`openai/mock-upstream`, `api_base: http://mock-llm:9000/v1`). Base URL for k6:

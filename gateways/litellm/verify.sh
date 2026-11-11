@@ -12,9 +12,17 @@
 #   prod            Postgres, Redis and the setup container are up, the virtual key has a
 #                   budget, and spend for a request shows up on the key and in the
 #                   spend logs
+# Variants (D28): retry = minimal checks plus "2 retries in the config"; prod-rl = prod checks
+# plus rpm/tpm/parallel limits on the key; prod-langfuse = prod checks plus the Langfuse
+# callback loaded, the Langfuse stack up (without its AI gateway) and a trace arriving.
 set -euo pipefail
 
 PROFILE="${PROFILE:-minimal}"
+case "$PROFILE" in
+  minimal|retry) FAMILY=minimal ;;
+  prod|prod-rl|prod-langfuse) FAMILY=prod ;;
+  *) echo "unknown profile $PROFILE" >&2; exit 2 ;;
+esac
 GW=gwbench-litellm
 KEY_MASTER=sk-gwbench-master
 KEY_VIRTUAL=sk-gwbench-virtual
@@ -68,7 +76,7 @@ case "$args" in
 esac
 
 KEY="$KEY_MASTER"
-[[ "$PROFILE" == prod ]] && KEY="$KEY_VIRTUAL"
+[[ "$FAMILY" == prod ]] && KEY="$KEY_VIRTUAL"
 out="$(gw_py "
 st, h, b = req('POST', '/v1/chat/completions', '$KEY',
   {'model': 'mock-gpt', 'messages': [{'role': 'user', 'content': 'verify'}]})
@@ -93,8 +101,12 @@ d = req('GET', '/active/callbacks', '$KEY_MASTER')[2]
 print(' '.join(sorted({str(x).split(' object')[0].split('.')[-1] for k in ('litellm.success_callback', 'litellm._async_success_callback', 'litellm.failure_callback') for x in d.get(k, [])})))
 " 2>&1 | tail -n 1 || true)"
 echo "  loaded callback classes: $cbs"
-check "no Langfuse, OTel, Prometheus or other logging callback is loaded" \
-  bash -c "! printf '%s' '$cbs' | grep -Eiq 'langfuse|otel|opentelemetry|prometheus|datadog|s3logger|gcs_bucket|custom_logger|webhook'"
+if [[ "$PROFILE" == prod-langfuse ]]; then
+  check "the Langfuse callback is loaded" bash -c "printf '%s' '$cbs' | grep -Eiq 'langfuse'"
+else
+  check "no Langfuse, OTel, Prometheus or other logging callback is loaded" \
+    bash -c "! printf '%s' '$cbs' | grep -Eiq 'langfuse|otel|opentelemetry|prometheus|datadog|s3logger|gcs_bucket|custom_logger|webhook'"
+fi
 
 # Granian (--run_granian, D25) starts one child process per worker under the main process (PID 1).
 case "$args" in
@@ -107,7 +119,11 @@ want="${want%% *}"
 check "$want worker process(es) are running (found $procs)" test "$procs" -eq "$want"
 
 # ---- minimal --------------------------------------------------------------
-if [[ "$PROFILE" == minimal ]]; then
+if [[ "$FAMILY" == minimal ]]; then
+  want_retries=0
+  [[ "$PROFILE" == retry ]] && want_retries=2
+  check "config: num_retries is $want_retries" \
+    bash -c "docker exec $GW grep -Eq '^[[:space:]]*num_retries: $want_retries\$' /app/config.yaml"
   for svc in gwbench-litellm-postgres gwbench-litellm-redis gwbench-litellm-setup; do
     check "no $svc container" test -z "$(docker ps -aq --filter "name=^${svc}$")"
   done
@@ -132,7 +148,7 @@ print(st)
 fi
 
 # ---- prod -----------------------------------------------------------------
-if [[ "$PROFILE" == prod ]]; then
+if [[ "$FAMILY" == prod ]]; then
   for svc in gwbench-litellm-postgres gwbench-litellm-redis; do
     check "$svc is healthy" test "$(docker inspect -f '{{.State.Health.Status}}' "$svc" 2>/dev/null)" = healthy
   done
@@ -171,6 +187,45 @@ st, h, b = req('GET', '/spend/logs?api_key=$KEY_VIRTUAL', '$KEY_MASTER')
 print(len(b) if isinstance(b, list) else -1)
 " 2>&1 | tail -n 1 || true)"
   check "spend logs hold rows for the virtual key ($logs)" test "$logs" -gt 0
+fi
+
+# ---- prod-rl: limits on the key -------------------------------------------
+if [[ "$PROFILE" == prod-rl ]]; then
+  lim="$(gw_py "
+i = req('GET', '/key/info?key=$KEY_VIRTUAL', '$KEY_MASTER')[2].get('info', {})
+print(i.get('rpm_limit'), i.get('tpm_limit'), i.get('max_parallel_requests'))
+" 2>&1 | tail -n 1 || true)"
+  echo "  key limits (rpm tpm parallel): $lim"
+  check "the virtual key has rpm, tpm and parallel-request limits (far above the load)" \
+    python3 -c "import sys; v = sys.argv[1].split(); sys.exit(0 if len(v) == 3 and 'None' not in v else 1)" "$lim"
+fi
+
+# ---- prod-langfuse: the Langfuse stack is the tracing backend -----------------
+if [[ "$PROFILE" == prod-langfuse ]]; then
+  for svc in gwbench-langfuse-web gwbench-langfuse-worker gwbench-langfuse-clickhouse gwbench-langfuse-postgres gwbench-langfuse-redis gwbench-langfuse-minio; do
+    check "$svc is running" test "$(docker inspect -f '{{.State.Running}}' "$svc" 2>/dev/null)" = true
+  done
+  check "the Langfuse AI gateway is not part of this target (no gwbench-langfuse-ai-gateway)" \
+    test -z "$(docker ps -aq --filter 'name=^gwbench-langfuse-ai-gateway$')"
+  # a trace for the requests above must show up in the Langfuse project
+  ok_trace=0
+  n=0
+  deadline=$(($(date +%s) + 90))
+  while [[ $(date +%s) -lt $deadline ]]; do
+    n="$(python3 -I - <<'PYEOF2' 2>/dev/null || true
+import base64, json, urllib.request
+from datetime import datetime, timedelta, timezone
+auth = base64.b64encode(b"pk-lf-gwbench-local:sk-lf-gwbench-local").decode()
+since = (datetime.now(timezone.utc) - timedelta(minutes=30)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+url = "http://127.0.0.1:13030/api/public/v2/observations?limit=10&type=GENERATION&fields=core&fromStartTime=" + since
+r = urllib.request.Request(url, headers={"Authorization": "Basic " + auth})
+print(len(json.load(urllib.request.urlopen(r, timeout=10)).get("data", [])))
+PYEOF2
+)"
+    if [[ "${n:-0}" =~ ^[0-9]+$ && "${n:-0}" -gt 0 ]]; then ok_trace=1; break; fi
+    sleep 3
+  done
+  if [[ $ok_trace -eq 1 ]]; then ok "the Langfuse API serves $n generation(s) for the requests sent through LiteLLM"; else bad "no trace reached Langfuse within 90 s"; fi
 fi
 
 if [[ $fails -gt 0 ]]; then

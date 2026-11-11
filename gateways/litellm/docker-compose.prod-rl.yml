@@ -1,0 +1,10 @@
+# ci-with: gateways/litellm/docker-compose.prod.yml
+# LiteLLM, profile "prod-rl" (S7): the prod overlay (apply it first) with a request and token
+# rate limit and a parallel-request limit on the virtual key, all far above what the benchmark
+# sends, so the limiter does its bookkeeping on every request and never rejects one.
+services:
+  litellm-setup:
+    environment:
+      KEY_RPM_LIMIT: ${LITELLM_KEY_RPM_LIMIT:-10000000}
+      KEY_TPM_LIMIT: ${LITELLM_KEY_TPM_LIMIT:-10000000000}
+      KEY_MAX_PARALLEL: ${LITELLM_KEY_MAX_PARALLEL:-100000}
