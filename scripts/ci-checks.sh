@@ -15,7 +15,9 @@ fail=0
 
 echo "== compose config"
 # Every compose file is validated. Files other than the base are overlays, so
-# they are validated merged on top of the base file.
+# they are validated merged on top of the base file. An overlay that only changes another
+# overlay (a different mounted config) or needs services of another stack starts with a line
+# "# ci-with: <overlay> [<overlay> ...]": those overlays are merged in between, in that order.
 compose_files=()
 while IFS= read -r f; do compose_files+=("$f"); done < <(
   find . \( -path ./.git -o -path ./node_modules -o -path ./results \) -prune -o \
@@ -27,7 +29,10 @@ for f in "${compose_files[@]}"; do
   if [[ "$f" == "$BASE" ]]; then
     args=(-f "$f")
   else
-    args=(-f "$BASE" -f "$f")
+    args=(-f "$BASE")
+    with="$(sed -n 's/^# ci-with:[[:space:]]*//p' "$f" | head -n 1)"
+    for w in $with; do args+=(-f "$w"); done
+    args+=(-f "$f")
   fi
   # --profile '*' so services behind profiles (tools, obs) are validated too
   if docker compose "${args[@]}" --profile '*' config -q; then

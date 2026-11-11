@@ -17,6 +17,11 @@
 #
 # Per run: start mock + target stack, wait until healthy, smoke request, verify
 # hook, then sampler + k6 (warm-up excluded), then metadata, then tear down.
+# Fault scenarios (s8-fail, s8-429): after verify.sh the mock is recreated with the fault knob
+# (MOCK_FAIL_RATE=0.05 or MOCK_429_RATE=0.05, override with S8_FAIL_RATE / S8_429_RATE), so the
+# verify checks run against a healthy upstream. Targets can set TARGET_POST_RUN (a command that
+# gets the run directory) and TARGET_POST_RUN_FOR (scenario ids) in target.env, e.g. the S6
+# trace count; it runs after k6, before the metadata.
 # Output: results/<date>/<target>/<profile>/<scenario>/run-<n>/
 #   summary.json   k6 summary export (read per-step sub-metrics, see k6/lib/arrival.js)
 #   resources.csv  per-container CPU/memory, 1 s
@@ -32,7 +37,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 . scripts/lib.sh
 
 usage() {
-  sed -n '2,29p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   printf '\nTargets:\n' >&2
   list_targets | sed 's/^/  /' >&2
   printf '\nScenarios:\n' >&2
@@ -86,6 +91,12 @@ gw_load "$target" "$profile"
 base_dir="results/$date_dir/$target/$PROFILE/$scenario"
 failed=0
 
+faults=""
+case "$scenario" in
+  s8-fail) faults="MOCK_FAIL_RATE=${S8_FAIL_RATE:-0.05}" ;;
+  s8-429) faults="MOCK_429_RATE=${S8_429_RATE:-0.05}" ;;
+esac
+
 cleanup() {
   ./scripts/sampler.sh stop >/dev/null 2>&1 || true
   if [[ $keep -eq 0 ]]; then gw_down; else log "--keep: stack left running (scripts/stack.sh down to remove)"; fi
@@ -108,6 +119,7 @@ run_once() {
   gw_up
   gw_smoke
   gw_verify
+  [[ -z "$faults" ]] || gw_faults "$faults"
 
   # k6 arguments: target settings first, then scenario flags, then outputs.
   while IFS= read -r line; do args+=("$line"); done < <(k6_target_env)
@@ -128,6 +140,13 @@ run_once() {
   set -e
   t_end="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   ./scripts/sampler.sh stop >/dev/null 2>&1 || true
+
+  if [[ -n "${TARGET_POST_RUN:-}" && "$k6_exit" -eq 0 && " ${TARGET_POST_RUN_FOR:-} " == *" $scenario "* ]]; then
+    local hook=()
+    read -r -a hook <<<"$TARGET_POST_RUN"
+    log "post-run hook: $TARGET_POST_RUN"
+    "${hook[@]}" "$run_dir" || { log "post-run hook failed"; failed=1; }
+  fi
 
   # metadata is written while the stack is still up (container limits, mock knobs).
   python3 scripts/metadata.py \

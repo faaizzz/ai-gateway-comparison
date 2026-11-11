@@ -54,7 +54,8 @@ gw_load() {
 
   # Start from a clean slate so one target's settings never leak into another.
   unset TARGET_DESCRIPTION TARGET_PROFILES TARGET_COMPOSE_FILES TARGET_BASE_URL TARGET_MODEL \
-    TARGET_API_KEY TARGET_HEALTH_URL TARGET_CONFIG_FILES TARGET_SMOKE_TIMEOUT_S TARGET_CONTAINERS
+    TARGET_API_KEY TARGET_HEALTH_URL TARGET_CONFIG_FILES TARGET_SMOKE_TIMEOUT_S TARGET_CONTAINERS \
+    TARGET_POST_RUN TARGET_POST_RUN_FOR
 
   # Profile is chosen before sourcing so target.env can use $PROFILE (for example
   # to pick docker-compose.$PROFILE.yml). The list of valid profiles is only known
@@ -114,6 +115,14 @@ gw_up() {
 gw_down() {
   log "tearing down stack"
   compose down -v --remove-orphans >/dev/null 2>&1 || compose down -v --remove-orphans || true
+}
+
+# gw_faults VAR=value ...: recreates the mock with fault knobs (S8), after the smoke and verify
+# steps ran against a healthy upstream. The mock's fault sequence restarts with the container.
+gw_faults() {
+  log "recreating the mock with faults: $*"
+  (cd "$REPO_ROOT" && env "$@" docker compose "${COMPOSE_ARGS[@]}" up -d --no-deps --force-recreate --wait mock-llm) ||
+    die "could not recreate the mock with $*"
 }
 
 # k6_run <k6 args...>: one-off k6 container on the gwbench network.
