@@ -754,3 +754,16 @@ steps in minimal (1000 at the edge), Bifrost holds all four with room to spare. 
 LiteLLM stops at about 300, Langfuse at about 1000, and Bifrost is still sustained at 8000, the
 top of D17's ladder, so S10 needs 10,000 and 12,000 for Bifrost (direct held 8000 with k6 at
 about 2.5 cores and 20,000 in D8) or the result is reported as "at least 8000".
+
+## D26 - Run budget for S2-S5, and S10 above 8000 (amends D17)
+
+**Repeats.** S2 is the headline scenario, so it runs 3 times per target (direct,
+litellm, bifrost, langfuse), minimal profile, with the median and range reported.
+S3, S4 and S5 run once per target. Each summary says how many runs it is based on.
+This keeps story #9 to about four hours of runs on one laptop.
+
+**S10 above 8000.** Bifrost held 8000 requests per second in tuning (D25), so D17's
+ladder would only show "at least 8000". S10 continues to 10000, 12000 and 16000 for
+any gateway that sustains 8000, as long as k6 stays under 4 cores (D17). The direct
+baseline at those rates comes from the S1 ramp (D8, held 20000) and the extended
+baseline from #8 (`results/2026-11-11/direct/none/s1-extended/`).
