@@ -17,8 +17,8 @@ up: ## Start the mock and a target's stack: make up TARGET=litellm [PROFILE=prod
 down: ## Remove the mock and any gateway stack, with volumes
 	./scripts/stack.sh down $(TARGET) $(if $(PROFILE),--profile $(PROFILE))
 
-smoke: ## Smoke request (and mode check) against an up target: make smoke TARGET=litellm
-	./scripts/stack.sh smoke $(TARGET) $(if $(PROFILE),--profile $(PROFILE))
+smoke: ## Plain + streaming request and mode check against an up target: make smoke TARGET=litellm [PROFILE=prod]
+	./scripts/smoke.sh $(TARGET) $(PROFILE) --no-up
 
 run: ## Run a scenario end to end: make run TARGET=direct SCENARIO=s1 [PROFILE REPEAT DURATION RATE WARMUP RAW]
 	./scripts/run.sh $(TARGET) $(SCENARIO) $(RUN_FLAGS)

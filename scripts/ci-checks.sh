@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Repo checks, same locally (`make lint`) and in CI.
 #   1. docker compose config -q for every compose file found
-#   2. shellcheck on scripts/*.sh
+#   2. shellcheck on scripts/*.sh and gateways/*/*.sh (the verify hooks)
 #   3. ruff on Python files
 # Needs only Docker and bash (3.2 on macOS is fine). Linters run in containers; no host installs.
 set -euo pipefail
@@ -41,7 +41,7 @@ done
 
 echo "== shellcheck"
 sh_files=()
-while IFS= read -r f; do sh_files+=("$f"); done < <(find scripts -maxdepth 1 -type f -name '*.sh' | sort)
+while IFS= read -r f; do sh_files+=("$f"); done < <({ find scripts -maxdepth 1 -type f -name '*.sh'; find gateways -mindepth 2 -maxdepth 2 -type f -name '*.sh'; } | sort)
 if [[ ${#sh_files[@]} -gt 0 ]]; then
   if docker run --rm -v "$PWD":/w -w /w "$SHELLCHECK_IMAGE" shellcheck "${sh_files[@]}"; then
     echo "ok   ${#sh_files[@]} script(s)"
