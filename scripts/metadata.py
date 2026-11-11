@@ -116,6 +116,28 @@ def containers():
     return out
 
 
+def container_states():
+    """State of every gwbench container, running or not: an OOM-killed or crashed container
+    is not in `docker ps`, so look at `docker ps -a` (used by scripts/sustained.py)."""
+    names = run(["docker", "ps", "-a", "--filter", "name=gwbench-", "--format", "{{.Names}}"]).split()
+    out = []
+    for name in sorted(names):
+        try:
+            st = json.loads(run(["docker", "inspect", name]))[0].get("State", {})
+        except (ValueError, IndexError):
+            continue
+        out.append(
+            {
+                "name": name,
+                "status": st.get("Status"),
+                "oom_killed": bool(st.get("OOMKilled")),
+                "exit_code": st.get("ExitCode"),
+                "restart_count": (json.loads(run(["docker", "inspect", name]))[0].get("RestartCount")),
+            }
+        )
+    return out
+
+
 def other_containers():
     """Running containers that are not part of this benchmark (name does not start with gwbench-).
 
@@ -219,6 +241,7 @@ def main():
         "mock_knobs": mock_env,
         "images": [image_details(r) for r in compose_images(compose_args)],
         "containers": conts,
+        "container_states": container_states(),
         "other_running_containers": other_containers(),
         "compose_files": a.compose_files.split(),
         "config_snapshot": snapshot,

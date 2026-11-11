@@ -149,6 +149,9 @@ gw_smoke() {
 # gw_verify: optional gateways/<target>/verify.sh checks that the profile's mode
 # is really active (contract rule 6). It runs on the host after the smoke test.
 gw_verify() {
+  # Only for tuning candidates whose process layout verify.sh does not know (scripts/tune.sh
+  # --no-verify). Never set it for a measured run.
+  if [[ "${GWBENCH_SKIP_VERIFY:-0}" == 1 ]]; then log "verify.sh SKIPPED (GWBENCH_SKIP_VERIFY=1, tuning candidate)"; return 0; fi
   local hook="$REPO_ROOT/$TARGET_DIR/verify.sh"
   [[ -f "$hook" ]] || { log "no verify.sh for $TARGET (nothing to check)"; return 0; }
   log "verifying mode with $TARGET_DIR/verify.sh"

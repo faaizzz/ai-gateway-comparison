@@ -21,7 +21,7 @@ Work is tracked in the GitHub Project and the issues of this repo. Every run pub
 | `mock-llm/` | Deterministic mock upstream (hostname `mock-llm`, port `9000`), see [mock-llm/README.md](mock-llm/README.md) |
 | `k6/` | Custom k6 image (`Dockerfile`, with xk6-sse), `smoke.js`, `smoke_target.js`, shared helpers in `lib/`, scenarios and their table in `scenarios/` |
 | `observability/` | Prometheus and Grafana config for the optional `obs` profile |
-| `scripts/` | Runner (`run.sh`, `stack.sh`, `lib.sh`), `metadata.py`, `summarize.py`, resource sampler |
+| `scripts/` | Runner (`run.sh`, `stack.sh`, `lib.sh`), `metadata.py`, `summarize.py`, `sustained.py` (D15/D24 verdict per step), `tune.sh` (tuning candidates, D25), resource sampler |
 | `results/` | Run output (raw data is git-ignored) |
 | `report/` | Report generator and write-up |
 | `docs/` | Contract and decisions |
