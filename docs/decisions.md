@@ -634,3 +634,19 @@ metric (OTLP endpoint `OTEL_EXPORTER_OTLP_ENDPOINT`), labelled as gateway-report
 **Traces (for S6).** USAGE traces appear in the project's v2 observations API about 3 s after the
 last request (35 of 35 in the smoke and verify bursts, FULL as well); they are best effort and
 not durable, so S6 must count them against requests sent under load and report lag and loss.
+
+## D24 - Sustained steps need a latency limit and a second run (amends D15, D16)
+
+Story #7 found two gaps in D15. Langfuse prod at 1000 requests per second reached 96 %
+of the target with no errors, so it counted as sustained, yet its p50 was 148 ms
+against a 62 ms baseline. And two ladder runs of the same profile disagreed at 500.
+
+1. **Latency limit.** A step is sustained only if, in addition to D15's rules, its
+   p50 is at most **2x the direct baseline p50 at the same rate** (about 125 ms with
+   the 60 ms mock). Above that the step is queueing, not adding a per-request cost.
+   The limit is the same for every gateway and is checked against S1 results.
+2. **Confirm the boundary.** A gateway's highest sustained step (in tuning, D16, and
+   in S10, D17) must hold in two runs out of two. If the runs disagree, the lower
+   step is reported and the disagreement is noted.
+3. **S10 repeats.** S10 runs 3 times per gateway and profile and reports the median
+   highest sustained rate, with the range.
