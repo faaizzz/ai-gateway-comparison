@@ -513,7 +513,10 @@ equal in both.
 organisation, project, project keys and owner user. A setup container (the Web image, which has
 Node and Prisma) logs in as that user and calls the tRPC routes of the gateway UI:
 `aiGateway.updateConfig` (ingestion project and mode) and `aiGateway.createApiKey` (gateway key),
-and tries `aiGateway.createConnection`. Two parts are not clean API use:
+and tries `aiGateway.createConnection`. It also defines the mock's model price in the Langfuse
+project through the public API (`POST /api/public/models`, 1 and 2 USD per million input and
+output tokens, D19), so prod generations are costed like the other gateways' requests; `verify.sh`
+checks one generation at 81 micro-USD. Two parts are not clean API use:
 (1) the connection falls back to a Prisma insert (D22); (2) Web generates the key secret
 itself, so the script replaces the new key's stored hash with the hash of a fixed dummy secret
 (`sk-lf-gwbench-gateway-key`, same salted SHA-256 as Web's `createShaHash`), so k6 uses a
@@ -609,7 +612,9 @@ RPS in prod (p50 148 ms and 40 requests per second short at 1000) and shows its 
 CPU reading passes 100 % at 1000 RPS (prod), while the gateway container uses at most 53 % of its
 2 CPUs and the other containers are far from theirs. This is an inference from CPU readings, not a
 profile. ClickHouse and the worker add load in
-prod (traces) and make the tail worse there. For story #8: a Web setting (more CPU or a second Web
+prod (traces) and make the tail worse there. By the D15 rule the prod step at 1000 counts as sustained on its rate alone (96 % of the target, above
+the 95 % line, no errors) although p50 is 2.4 times the baseline: the rule has no latency criterion,
+which story #8 may want. For story #8: a Web setting (more CPU or a second Web
 replica, `NODE_OPTIONS`) is where tuning would matter, and the ladder is meaningful here up to 1000.
 
 **No overhead header.** The gateway's response headers are `langfuse-request-id`,
