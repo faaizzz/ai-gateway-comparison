@@ -1,0 +1,119 @@
+# LiteLLM, profile "prod": proxy + Postgres + Redis, a virtual key with a budget
+# created at setup, spend tracking on. Overlay on docker-compose.base.yml
+# (gateways/README.md). Image and worker count as in the minimal profile.
+#   litellm            gwbench-litellm           2 CPU / 2 GB (the gateway limit)
+#   litellm-postgres   gwbench-litellm-postgres  1 CPU / 1 GB
+#   litellm-redis      gwbench-litellm-redis     1 CPU / 512 MB
+#   litellm-setup      gwbench-litellm-setup     creates the virtual key, then idles (128 MB, 0.25 CPU)
+# The whole stack counts towards the resources reported under contract rule 1.
+# Hook for the Langfuse callback (story S6): add its callback to
+# gateways/litellm/config.prod.yaml and its keys to `litellm.environment` here.
+services:
+  litellm-postgres:
+    image: postgres:17.6-alpine3.22
+    container_name: gwbench-litellm-postgres
+    hostname: litellm-postgres
+    networks:
+      - gwbench
+    cpus: 1
+    mem_limit: 1g
+    memswap_limit: 1g
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: gwbench-local # local dummy value
+      POSTGRES_DB: litellm
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 2s
+      timeout: 3s
+      start_period: 3s
+      retries: 30
+    restart: "no"
+
+  litellm-redis:
+    image: redis:8.2.2-alpine3.22
+    container_name: gwbench-litellm-redis
+    hostname: litellm-redis
+    networks:
+      - gwbench
+    cpus: 1
+    mem_limit: 512m
+    memswap_limit: 512m
+    # No persistence: state lives only as long as the run.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.109.0
+    container_name: gwbench-litellm
+    hostname: litellm
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 2g
+    memswap_limit: 2g
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+      litellm-postgres:
+        condition: service_healthy
+      litellm-redis:
+        condition: service_healthy
+    command:
+      - --config=/app/config.yaml
+      - --host=0.0.0.0
+      - --port=4000
+      - --num_workers=${LITELLM_WORKERS:-2}
+    environment:
+      LITELLM_MASTER_KEY: sk-gwbench-master # local dummy value
+      DATABASE_URL: postgresql://litellm:gwbench-local@litellm-postgres:5432/litellm
+      REDIS_HOST: litellm-redis
+      REDIS_PORT: "6379"
+      LITELLM_TELEMETRY: "False"
+      LITELLM_LOG: ${LITELLM_LOG:-ERROR}
+    volumes:
+      - ./gateways/litellm/config.prod.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/readiness', timeout=3).status == 200 else 1)"]
+      interval: 3s
+      timeout: 5s
+      start_period: 40s
+      retries: 60
+    restart: "no"
+
+  # Setup: waits for the proxy, creates the virtual key (fixed dummy value, with a
+  # budget) through the admin API, then idles. It idles, and does not exit,
+  # because `docker compose up --wait` treats any exited container as a failure;
+  # its healthcheck turns green once the key exists. Its image is the proxy image
+  # (it has python), so no extra image is pulled.
+  litellm-setup:
+    image: ghcr.io/berriai/litellm:v1.109.0
+    container_name: gwbench-litellm-setup
+    networks:
+      - gwbench
+    cpus: 0.25
+    mem_limit: 128m
+    memswap_limit: 128m
+    depends_on:
+      litellm:
+        condition: service_healthy
+    entrypoint: ["python", "-B", "/setup/setup-key.py"]
+    environment:
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: sk-gwbench-master
+      VIRTUAL_KEY: sk-gwbench-virtual # must match TARGET_API_KEY in target.env
+      KEY_MAX_BUDGET: ${LITELLM_KEY_MAX_BUDGET:-1000000}
+      READY_FILE: /tmp/key-ready
+    volumes:
+      - ./gateways/litellm/setup-key.py:/setup/setup-key.py:ro
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f /tmp/key-ready ]"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+    restart: "no"

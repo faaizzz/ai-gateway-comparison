@@ -1,0 +1,232 @@
+name: gwbench
+services:
+  k6:
+    profiles:
+      - tools
+    build:
+      context: ./k6
+      dockerfile: Dockerfile
+    environment:
+      K6_NO_USAGE_REPORT: "true"
+      K6_PROMETHEUS_RW_PUSH_INTERVAL: 2s
+      K6_PROMETHEUS_RW_SERVER_URL: http://gwbench-prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(50),p(95),p(99),avg,max
+    image: gwbench/k6:2.3.0-sse0.2.0
+    networks:
+      gwbench: null
+    user: "501:20"
+    volumes:
+      - type: bind
+        source: ./k6
+        target: /k6
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./results
+        target: /results
+        bind:
+          create_host_path: true
+    working_dir: /k6
+  litellm:
+    cpus: 2
+    command:
+      - --config=/app/config.yaml
+      - --host=0.0.0.0
+      - --port=4000
+      - --num_workers=2
+    container_name: gwbench-litellm
+    depends_on:
+      litellm-postgres:
+        condition: service_healthy
+        required: true
+      litellm-redis:
+        condition: service_healthy
+        required: true
+      mock-llm:
+        condition: service_healthy
+        required: true
+    environment:
+      DATABASE_URL: postgresql://litellm:gwbench-local@litellm-postgres:5432/litellm
+      LITELLM_LOG: ERROR
+      LITELLM_MASTER_KEY: sk-gwbench-master
+      LITELLM_TELEMETRY: "False"
+      REDIS_HOST: litellm-redis
+      REDIS_PORT: "6379"
+    hostname: litellm
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/readiness', timeout=3).status == 200 else 1)
+      timeout: 5s
+      interval: 3s
+      retries: 60
+      start_period: 40s
+    image: ghcr.io/berriai/litellm:v1.109.0
+    mem_limit: "2147483648"
+    memswap_limit: "2147483648"
+    networks:
+      gwbench: null
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./gateways/litellm/config.prod.yaml
+        target: /app/config.yaml
+        read_only: true
+        bind:
+          create_host_path: true
+  litellm-postgres:
+    cpus: 1
+    container_name: gwbench-litellm-postgres
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_PASSWORD: gwbench-local
+      POSTGRES_USER: litellm
+    hostname: litellm-postgres
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U litellm -d litellm
+      timeout: 3s
+      interval: 2s
+      retries: 30
+      start_period: 3s
+    image: postgres:17.6-alpine3.22
+    mem_limit: "1073741824"
+    memswap_limit: "1073741824"
+    networks:
+      gwbench: null
+    restart: "no"
+  litellm-redis:
+    cpus: 1
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    container_name: gwbench-litellm-redis
+    hostname: litellm-redis
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 3s
+      interval: 2s
+      retries: 30
+    image: redis:8.2.2-alpine3.22
+    mem_limit: "536870912"
+    memswap_limit: "536870912"
+    networks:
+      gwbench: null
+    restart: "no"
+  litellm-setup:
+    cpus: 0.25
+    container_name: gwbench-litellm-setup
+    depends_on:
+      litellm:
+        condition: service_healthy
+        required: true
+    entrypoint:
+      - python
+      - -B
+      - /setup/setup-key.py
+    environment:
+      KEY_MAX_BUDGET: "1000000"
+      LITELLM_MASTER_KEY: sk-gwbench-master
+      LITELLM_URL: http://litellm:4000
+      READY_FILE: /tmp/key-ready
+      VIRTUAL_KEY: sk-gwbench-virtual
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - '[ -f /tmp/key-ready ]'
+      timeout: 2s
+      interval: 2s
+      retries: 60
+    image: ghcr.io/berriai/litellm:v1.109.0
+    mem_limit: "134217728"
+    memswap_limit: "134217728"
+    networks:
+      gwbench: null
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./gateways/litellm/setup-key.py
+        target: /setup/setup-key.py
+        read_only: true
+        bind:
+          create_host_path: true
+  mock-llm:
+    build:
+      context: ./mock-llm
+      dockerfile: Dockerfile
+    cpus: 2
+    container_name: gwbench-mock-llm
+    environment:
+      MOCK_429_RATE: ""
+      MOCK_FAIL_RATE: ""
+      MOCK_FAIL_STATUS: ""
+      MOCK_ITL_MS: "5"
+      MOCK_LATENCY_MS: "60"
+      MOCK_OUTPUT_TOKENS: "40"
+      MOCK_RETRY_AFTER_S: ""
+      MOCK_TTFT_MS: "20"
+      MOCK_WORKER_THREADS: "8"
+    hostname: mock-llm
+    healthcheck:
+      test:
+        - CMD
+        - mock-upstream
+        - --healthcheck
+      timeout: 3s
+      interval: 2s
+      retries: 15
+      start_period: 1s
+    image: gwbench/mock-llm:0.1.0
+    mem_limit: "536870912"
+    memswap_limit: "536870912"
+    networks:
+      gwbench: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 9000
+        published: "19000"
+        protocol: tcp
+    restart: "no"
+  sampler:
+    profiles:
+      - tools
+    entrypoint:
+      - python3
+      - -B
+      - /scripts/sampler.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+    image: python:3.13.9-alpine3.22
+    networks:
+      gwbench: null
+    volumes:
+      - type: bind
+        source: ./scripts/sampler.py
+        target: /scripts/sampler.py
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./results
+        target: /results
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        bind:
+          create_host_path: true
+networks:
+  gwbench:
+    name: gwbench

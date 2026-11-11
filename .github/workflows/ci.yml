@@ -30,3 +30,19 @@ jobs:
       - run: make run TARGET=direct SCENARIO=s1 RATE=100 DURATION=5 WARMUP=2
       - if: always()
         run: make base-down
+
+  # LiteLLM stack, both profiles: stack up, non-streaming and streaming request,
+  # verify.sh (profile really is minimal or prod). Pulls the 1.3 GB LiteLLM image.
+  litellm-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [minimal, prod]
+    steps:
+      - uses: actions/checkout@v4
+      - run: make k6-build
+      - run: ./scripts/smoke.sh litellm ${{ matrix.profile }}
+      - if: always()
+        run: make base-down

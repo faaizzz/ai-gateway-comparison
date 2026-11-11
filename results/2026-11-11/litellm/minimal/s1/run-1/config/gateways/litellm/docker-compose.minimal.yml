@@ -1,0 +1,35 @@
+# LiteLLM, profile "minimal": the proxy alone, master key only. No database, no
+# Redis, no callbacks. Overlay on docker-compose.base.yml (gateways/README.md).
+#   Image: ghcr.io/berriai/litellm:v1.109.0 (decision D11 has the digest).
+#   Workers: LITELLM_WORKERS (default 2; the tuning pass, story #8, sets the final value).
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.109.0
+    container_name: gwbench-litellm
+    hostname: litellm
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 2g
+    memswap_limit: 2g # no swap, so the memory limit is real
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+    command:
+      - --config=/app/config.yaml
+      - --host=0.0.0.0
+      - --port=4000
+      - --num_workers=${LITELLM_WORKERS:-2}
+    environment:
+      LITELLM_MASTER_KEY: sk-gwbench-master # local dummy value
+      LITELLM_TELEMETRY: "False"
+      LITELLM_LOG: ${LITELLM_LOG:-ERROR}
+    volumes:
+      - ./gateways/litellm/config.minimal.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=3).status == 200 else 1)"]
+      interval: 3s
+      timeout: 5s
+      start_period: 20s
+      retries: 40
+    restart: "no"
