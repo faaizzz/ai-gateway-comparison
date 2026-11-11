@@ -1,0 +1,46 @@
+# Bifrost, profile "minimal": the gateway alone. No config store, no log store, no
+# logging plugin, no Prometheus telemetry, no auth. Overlay on docker-compose.base.yml
+# (gateways/README.md). See decisions D13 and gateways/bifrost/README.md.
+#   Image: maximhq/bifrost:v2.5.1 (decision D13 has the digest).
+services:
+  bifrost:
+    image: maximhq/bifrost:v2.5.1
+    container_name: gwbench-bifrost
+    hostname: bifrost
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 2g
+    memswap_limit: 2g # no swap, so the memory limit is real
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+    # Published on loopback only, for verify.sh and debugging (the image has no curl
+    # and its busybox wget hides error bodies). k6 uses the network, not this port.
+    ports:
+      - "127.0.0.1:${BIFROST_HOST_PORT:-18080}:8080"
+    environment:
+      UPSTREAM_API_KEY: sk-mock-upstream # local dummy value; the mock accepts any key
+      LOG_LEVEL: ${BIFROST_LOG_LEVEL:-error}
+      # Go runtime knobs, left unset on purpose (the image default is "" = Go's own
+      # default). Story #8 may set GOGC / GOMEMLIMIT.
+      GOGC: ${BIFROST_GOGC:-}
+      GOMEMLIMIT: ${BIFROST_GOMEMLIMIT:-}
+    volumes:
+      - ./gateways/bifrost/config.minimal.json:/app/data/config.json:ro
+      # Local pricing datasheet (decision D13): no download from getbifrost.ai at start.
+      - ./gateways/bifrost/datasheet:/app/datasheet:ro
+      # Writable data dir on purpose: if a store were switched on by accident it
+      # would write its SQLite file here, and verify.sh looks for it.
+      - bifrost-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 5s
+      start_period: 10s
+      retries: 40
+    restart: "no"
+
+volumes:
+  bifrost-data:
+    name: gwbench-bifrost-data

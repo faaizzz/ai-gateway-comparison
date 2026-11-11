@@ -1,0 +1,48 @@
+# Bifrost, profile "prod": config store and log store on (SQLite files in a volume,
+# Bifrost's own default backend), logging plugin on, governance with a virtual key
+# and a budget, Prometheus telemetry on (default). Overlay on docker-compose.base.yml
+# (gateways/README.md). See decision D13 and gateways/bifrost/README.md.
+#   bifrost   gwbench-bifrost   2 CPU / 2 GB (the gateway limit). The whole stack: the
+#   stores are SQLite files inside this container, so there is no second container to
+#   count under contract rule 1.
+services:
+  bifrost:
+    image: maximhq/bifrost:v2.5.1
+    container_name: gwbench-bifrost
+    hostname: bifrost
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 2g
+    memswap_limit: 2g # no swap, so the memory limit is real
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+    # Published on loopback only, for verify.sh and debugging (the image has no curl
+    # and its busybox wget hides error bodies). k6 uses the network, not this port.
+    ports:
+      - "127.0.0.1:${BIFROST_HOST_PORT:-18080}:8080"
+    environment:
+      UPSTREAM_API_KEY: sk-mock-upstream # local dummy value; the mock accepts any key
+      BIFROST_VIRTUAL_KEY: sk-bf-gwbench-virtual # local dummy value; must match TARGET_API_KEY in target.env
+      BIFROST_SETUP_TOKEN: gwbench-setup-token # local dummy value; unlocks /api/* for verify.sh (header x-bifrost-setup-token)
+      LOG_LEVEL: ${BIFROST_LOG_LEVEL:-error}
+      GOGC: ${BIFROST_GOGC:-}
+      GOMEMLIMIT: ${BIFROST_GOMEMLIMIT:-}
+    volumes:
+      - ./gateways/bifrost/config.prod.json:/app/data/config.json:ro
+      # Local pricing datasheet (decision D13): no download from getbifrost.ai at start.
+      - ./gateways/bifrost/datasheet:/app/datasheet:ro
+      # config.db and logs.db are created here; `down -v` removes them with the stack.
+      - bifrost-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 5s
+      start_period: 10s
+      retries: 40
+    restart: "no"
+
+volumes:
+  bifrost-data:
+    name: gwbench-bifrost-data

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "setup_token": "env.BIFROST_SETUP_TOKEN",
+  "config_store": {
+    "enabled": true,
+    "type": "sqlite",
+    "config": { "path": "/app/data/config.db" }
+  },
+  "logs_store": {
+    "enabled": true,
+    "type": "sqlite",
+    "config": { "path": "/app/data/logs.db" }
+  },
+  "client": {
+    "enable_logging": true,
+    "enforce_auth_on_inference": true,
+    "initial_pool_size": 5000,
+    "drop_excess_requests": false
+  },
+  "framework": {
+    "pricing": {
+      "pricing_url": "file:///app/datasheet/pricing.json",
+      "model_parameters_url": "file:///app/datasheet/model-parameters.json",
+      "pricing_sync_interval": 86400,
+      "mcp_library_sync_interval": 0
+    }
+  },
+  "providers": {
+    "openai": {
+      "keys": [
+        { "name": "mock", "value": "env.UPSTREAM_API_KEY", "models": ["*"], "weight": 1.0 }
+      ],
+      "network_config": {
+        "base_url": "http://mock-llm:9000",
+        "allow_private_network": true,
+        "max_retries": 0
+      },
+      "concurrency_and_buffer_size": { "concurrency": 1000, "buffer_size": 5000 }
+    }
+  },
+  "governance": {
+    "virtual_keys": [
+      {
+        "id": "vk-gwbench",
+        "name": "gwbench",
+        "value": "env.BIFROST_VIRTUAL_KEY",
+        "is_active": true,
+        "provider_configs": [
+          { "provider": "openai", "allowed_models": ["mock-gpt"], "key_ids": ["*"], "weight": 1 }
+        ]
+      }
+    ],
+    "budgets": [
+      { "id": "budget-gwbench", "max_limit": 1000000, "reset_duration": "1M", "virtual_key_id": "vk-gwbench" }
+    ]
+  }
+}
