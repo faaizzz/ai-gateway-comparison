@@ -1,7 +1,7 @@
 # Langfuse AI Gateway target
 
 Self-hosted Langfuse plus `langfuse/ai-gateway` in front of the mock. Decisions:
-[D15 to D17](../../docs/decisions.md) (D2 and D3 are the go/no-go questions).
+[D21 to D23](../../docs/decisions.md) (D2 and D3 are the go/no-go questions).
 Contract for targets: [gateways/README.md](../README.md).
 
 | | `minimal` | `prod` |
@@ -17,7 +17,7 @@ gateway asks it to resolve every request (the control plane); what the profiles 
 whether the gateway sends traces. So "minimal" here means "no tracing", not "no Langfuse".
 Contract rule 1 applies: report the whole stack, not only the gateway container.
 
-Images (all arm64, versions pinned, digests in D15 and in every run's `metadata.json`):
+Images (all arm64, versions pinned, digests in D21 and in every run's `metadata.json`):
 
 | Service | Container | Image | Limit |
 | --- | --- | --- | --- |
@@ -53,11 +53,15 @@ organisation, project, project keys and owner user at first start. `setup.mjs` t
 the UI would: logs in as that user, sets the gateway config (ingestion project and mode) through
 the tRPC route `aiGateway.updateConfig`, creates the OpenAI connection to the mock
 (`http://mock-llm:9000/v1`), and creates a gateway key through `aiGateway.createApiKey`. Two
-things are not clean API use, both in D15: Web v4.78.0 refuses a custom base URL in
+things are not clean API use, both in D21 and D22: Web v4.78.0 refuses a custom base URL in
 `createConnection` outside development, preview and staging builds, so the connection row is
 inserted with Prisma instead (same encryption and columns); and Web picks the key secret itself,
 so the script overwrites the new key's stored hash with the hash of a fixed dummy secret
 (`sk-lf-gwbench-gateway-key`) so k6 can use a constant key.
+
+It also defines the mock's model price in the Langfuse project (`POST /api/public/models`,
+1 and 2 USD per million input and output tokens, D19) so prod generations are costed; `verify.sh`
+expects 81 micro-USD for one request.
 
 **ES256 key.** The key that signs the gateway's ingestion tokens is generated inside the Web
 container at every start (a `node -e` in the entrypoint, in memory only), so no private key is
@@ -68,7 +72,7 @@ in the repository or in `compose.resolved.yml`.
 `langfuse-project-id`, `langfuse-provider` and `langfuse-provider-connection-id`; none is a duration.
 It does export a `gateway.overhead.duration` metric over OTLP (`OTEL_EXPORTER_OTLP_ENDPOINT`), which
 needs a collector and is not wired up. So `gateway_overhead_ms` stays empty for this target and
-the comparison is the k6 latency against the S1 baseline (D17).
+the comparison is the k6 latency against the S1 baseline (D23).
 
 **`verify.sh` (`verify.py`).** Both profiles: all eight stack containers up, gateway limit and
 image, allow-list on gateway and Web, `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` unset, the ingestion mode

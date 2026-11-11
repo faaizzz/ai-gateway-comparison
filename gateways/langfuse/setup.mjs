@@ -12,17 +12,21 @@
 //      outside development, preview and staging builds ("Custom base URLs and extra headers
 //      are not available yet"); when that happens it inserts the same row with Prisma
 //      (same encryption as Web, same columns) and says so. The data plane (resolve and the
-//      gateway) has no such gate, so the connection works. Decision D15;
+//      gateway) has no such gate, so the connection works. Decision D22;
 //   4. creates a gateway API key through aiGateway.createApiKey, then replaces its secret by
 //      the fixed dummy value GATEWAY_KEY (Web stores only salted SHA-256 of the secret, the
 //      same formula as createShaHash in packages/shared), so k6 can use a constant key. Web
 //      does not let a caller choose the secret;
-//   5. writes READY_FILE (the container healthcheck looks for it) and idles, because
+//   5. defines the mock's model price in the Langfuse project through the public API
+//      (POST /api/public/models, project keys): 1 USD per million input tokens and 2 per
+//      million output tokens, the same price every gateway gets (decision D19), so the
+//      generations in prod get a cost;
+//   6. writes READY_FILE (the container healthcheck looks for it) and idles, because
 //      `docker compose up --wait` counts an exited container as a failure.
 //
 // Environment: WEB_URL, DATABASE_URL, SALT, ENCRYPTION_KEY, ORG_ID, PROJECT_ID, USER_EMAIL,
 // USER_PASSWORD, INGESTION_MODE, CONNECTION_NAME, CONNECTION_BASE_URL, CONNECTION_CREDENTIAL,
-// GATEWAY_KEY, READY_FILE.
+// GATEWAY_KEY, PROJECT_PUBLIC_KEY, PROJECT_SECRET_KEY, READY_FILE.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -46,6 +50,8 @@ const CREDENTIAL = e("CONNECTION_CREDENTIAL");
 const GATEWAY_KEY = e("GATEWAY_KEY");
 const SALT = e("SALT");
 const ENCRYPTION_KEY = e("ENCRYPTION_KEY");
+const PROJECT_PK = e("PROJECT_PUBLIC_KEY");
+const PROJECT_SK = e("PROJECT_SECRET_KEY");
 const READY_FILE = process.env.READY_FILE || "/tmp/setup-ready";
 
 const log = (msg) => console.log(`setup: ${msg}`);
@@ -214,6 +220,26 @@ async function main() {
     });
     log(`gateway key ${id} created through tRPC, secret replaced by the fixed local value`);
   }
+
+  // 5. mock model price (D19): 1 USD per million input tokens, 2 per million output tokens.
+  // The generation carries the requested name (gpt-mock) and the mock answers as mock-upstream.
+  const modelRes = await fetch(`${WEB}/api/public/models`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Basic ${Buffer.from(`${PROJECT_PK}:${PROJECT_SK}`).toString("base64")}`,
+    },
+    body: JSON.stringify({
+      modelName: "mock-upstream",
+      matchPattern: "(?i)^(gpt-mock|mock-upstream)$",
+      unit: "TOKENS",
+      inputPrice: 0.000001,
+      outputPrice: 0.000002,
+    }),
+  });
+  if (modelRes.ok) log("model price defined: gpt-mock / mock-upstream, 1 and 2 USD per million tokens");
+  else if (modelRes.status === 400 || modelRes.status === 409) log(`model price not created (HTTP ${modelRes.status}, probably exists): ${(await modelRes.text()).slice(0, 200)}`);
+  else throw new Error(`creating the model price failed: HTTP ${modelRes.status} ${(await modelRes.text()).slice(0, 300)}`);
 
   await prisma.$disconnect();
   fs.writeFileSync(READY_FILE, "ok\n");

@@ -1,5 +1,5 @@
 """D3 measurement: how many calls does one gateway request cost Langfuse Web, with the
-resolve cache on and off (decision D17). Not part of a benchmark run; run it by hand:
+resolve cache on and off (decision D23). Not part of a benchmark run; run it by hand:
 
     python3 gateways/langfuse/d3.py [--requests 200] [--threads 4]
 

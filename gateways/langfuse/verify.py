@@ -203,6 +203,9 @@ else:
         g = seen[0]
         usage = g.get("usageDetails") or {}
         check("observation carries token usage (input 1, output 40)", usage.get("input") == 1 and usage.get("output") == 40)
+        cost = g.get("totalCost")
+        # 1 prompt token at 1 USD per million and 40 completion tokens at 2 USD per million (D19)
+        check(f"observation is priced at the mock model's price (81 micro-USD, got {cost})", cost is not None and abs(cost - 0.000081) < 1e-9)
         if MODE == "USAGE":
             check("USAGE records no prompt and no response (input and output null)", g.get("input") is None and g.get("output") is None)
         else:

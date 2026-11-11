@@ -1,4 +1,4 @@
-"""Counting reverse proxy for the D3 measurement (decision D17), not part of any benchmark run.
+"""Counting reverse proxy for the D3 measurement (decision D23), not part of any benchmark run.
 
 Sits between the Langfuse AI Gateway and Langfuse Web (the gateway's LANGFUSE_AI_GATEWAY_WEB_URL
 points at it) and counts every request it forwards, by method and path. GET /__counts returns the

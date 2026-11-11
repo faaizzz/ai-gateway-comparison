@@ -4,7 +4,7 @@
 # the stack is the same, only the gateway's ingestion mode differs (minimal = NONE, no
 # tracing; prod = USAGE; FULL for S6). The mode is set by langfuse-setup from
 # LANGFUSE_INGESTION_MODE, which target.env exports per profile.
-# Decisions D15 to D17 and gateways/langfuse/README.md.
+# Decisions D21 to D23 and gateways/langfuse/README.md.
 #
 # Adapted from the official docker-compose.yml of langfuse/langfuse v4.78.0, with every
 # image pinned and every service given an explicit memory and CPU limit (Docker has
@@ -283,6 +283,8 @@ services:
       CONNECTION_CREDENTIAL: sk-mock-upstream # the mock accepts any key
       # Must match TARGET_API_KEY in target.env.
       GATEWAY_KEY: sk-lf-gwbench-gateway-key
+      PROJECT_PUBLIC_KEY: pk-lf-gwbench-local # LANGFUSE_INIT_PROJECT_PUBLIC_KEY on Web
+      PROJECT_SECRET_KEY: sk-lf-gwbench-local
       READY_FILE: /tmp/setup-ready
     volumes:
       - ./gateways/langfuse/setup.mjs:/app/gwbench-setup/setup.mjs:ro
