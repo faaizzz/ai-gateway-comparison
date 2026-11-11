@@ -1,0 +1,29 @@
+# LiteLLM proxy, profile "minimal" (contract rule 4): master key only.
+# No database, no callbacks, no spend tracking, no Redis. See decisions D11.
+model_list:
+  - model_name: mock-gpt
+    litellm_params:
+      model: openai/mock-upstream
+      api_base: http://mock-llm:9000/v1
+      api_key: sk-mock-upstream # the mock accepts any key; local dummy value
+    # Per-token prices so a request has a non-zero cost (the mock is not in
+    # LiteLLM's price list). Same in both profiles, so both do the same cost math.
+    model_info:
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.000002
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # Without DATABASE_URL the proxy keeps no spend logs or key store. Said
+  # explicitly so a later image default cannot turn it on.
+  disable_spend_logs: true
+
+litellm_settings:
+  # No callbacks, no success/failure hooks, no request logging.
+  callbacks: []
+  success_callback: []
+  failure_callback: []
+  turn_off_message_logging: true
+  # Same router settings as prod; nothing that adds retries or cooldowns on top
+  # of the mock.
+  num_retries: 0
