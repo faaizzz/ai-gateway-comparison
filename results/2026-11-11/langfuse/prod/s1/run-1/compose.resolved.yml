@@ -1,0 +1,511 @@
+name: gwbench
+services:
+  k6:
+    profiles:
+      - tools
+    build:
+      context: ./k6
+      dockerfile: Dockerfile
+    environment:
+      K6_NO_USAGE_REPORT: "true"
+      K6_PROMETHEUS_RW_PUSH_INTERVAL: 2s
+      K6_PROMETHEUS_RW_SERVER_URL: http://gwbench-prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(50),p(95),p(99),avg,max
+    image: gwbench/k6:2.3.0-sse0.2.0
+    networks:
+      gwbench: null
+    user: "501:20"
+    volumes:
+      - type: bind
+        source: ./k6
+        target: /k6
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./results
+        target: /results
+        bind:
+          create_host_path: true
+    working_dir: /k6
+  langfuse-ai-gateway:
+    cpus: 2
+    container_name: gwbench-langfuse-ai-gateway
+    depends_on:
+      langfuse-setup:
+        condition: service_healthy
+        required: true
+      langfuse-web:
+        condition: service_healthy
+        required: true
+      mock-llm:
+        condition: service_healthy
+        required: true
+    environment:
+      LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: gwbench-local-gateway-service-key
+      LANGFUSE_AI_GATEWAY_WEB_URL: http://langfuse-web:3000
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: mock-llm
+      LANGFUSE_LOG_LEVEL: warn
+    hostname: langfuse-ai-gateway
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO
+        - /dev/null
+        - http://127.0.0.1:8080/health
+      timeout: 5s
+      interval: 3s
+      retries: 40
+      start_period: 3s
+    image: langfuse/ai-gateway:4.78.0
+    mem_limit: "2147483648"
+    memswap_limit: "2147483648"
+    networks:
+      gwbench: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 8080
+        published: "18081"
+        protocol: tcp
+    restart: "no"
+  langfuse-clickhouse:
+    cpus: 2
+    container_name: gwbench-langfuse-clickhouse
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_PASSWORD: gwbench-local
+      CLICKHOUSE_USER: clickhouse
+    hostname: langfuse-clickhouse
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      timeout: 5s
+      interval: 3s
+      retries: 40
+      start_period: 3s
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
+    mem_limit: "1610612736"
+    memswap_limit: "1610612736"
+    networks:
+      gwbench: null
+    restart: "no"
+    user: 101:101
+    volumes:
+      - type: volume
+        source: langfuse-clickhouse-data
+        target: /var/lib/clickhouse
+        volume: {}
+      - type: bind
+        source: ./gateways/langfuse/clickhouse-low-memory.xml
+        target: /etc/clickhouse-server/config.d/low-memory.xml
+        read_only: true
+        bind:
+          create_host_path: true
+  langfuse-minio:
+    cpus: 1
+    command:
+      - -c
+      - mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data
+    container_name: gwbench-langfuse-minio
+    entrypoint:
+      - sh
+    environment:
+      MINIO_ROOT_PASSWORD: gwbench-local-minio
+      MINIO_ROOT_USER: minio
+    hostname: langfuse-minio
+    healthcheck:
+      test:
+        - CMD
+        - mc
+        - ready
+        - local
+      timeout: 5s
+      interval: 2s
+      retries: 30
+      start_period: 2s
+    image: cgr.dev/chainguard/minio:latest@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a
+    mem_limit: "402653184"
+    memswap_limit: "402653184"
+    networks:
+      gwbench: null
+    restart: "no"
+    volumes:
+      - type: volume
+        source: langfuse-minio-data
+        target: /data
+        volume: {}
+  langfuse-postgres:
+    cpus: 1
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=100
+    container_name: gwbench-langfuse-postgres
+    environment:
+      PGTZ: UTC
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: gwbench-local
+      POSTGRES_USER: postgres
+      TZ: UTC
+    hostname: langfuse-postgres
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U postgres -d postgres
+      timeout: 3s
+      interval: 2s
+      retries: 30
+      start_period: 3s
+    image: postgres:17.6-alpine3.22
+    mem_limit: "536870912"
+    memswap_limit: "536870912"
+    networks:
+      gwbench: null
+    restart: "no"
+    volumes:
+      - type: volume
+        source: langfuse-postgres-data
+        target: /var/lib/postgresql/data
+        volume: {}
+  langfuse-redis:
+    cpus: 1
+    command:
+      - redis-server
+      - --requirepass
+      - gwbench-local
+      - --maxmemory-policy
+      - noeviction
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    container_name: gwbench-langfuse-redis
+    environment:
+      REDISCLI_AUTH: gwbench-local
+    hostname: langfuse-redis
+    healthcheck:
+      test:
+        - CMD
+        - redis-cli
+        - ping
+      timeout: 3s
+      interval: 2s
+      retries: 30
+    image: redis:8.2.2-alpine3.22
+    mem_limit: "268435456"
+    memswap_limit: "268435456"
+    networks:
+      gwbench: null
+    restart: "no"
+  langfuse-setup:
+    cpus: 0.5
+    container_name: gwbench-langfuse-setup
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+        required: true
+      mock-llm:
+        condition: service_healthy
+        required: true
+    entrypoint:
+      - node
+      - /app/gwbench-setup/setup.mjs
+    environment:
+      CONNECTION_BASE_URL: http://mock-llm:9000/v1
+      CONNECTION_CREDENTIAL: sk-mock-upstream
+      CONNECTION_NAME: mock
+      DATABASE_URL: postgresql://postgres:gwbench-local@langfuse-postgres:5432/postgres
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      GATEWAY_KEY: sk-lf-gwbench-gateway-key
+      INGESTION_MODE: USAGE
+      ORG_ID: gwbench-org
+      PROJECT_ID: gwbench-project
+      PROJECT_PUBLIC_KEY: pk-lf-gwbench-local
+      PROJECT_SECRET_KEY: sk-lf-gwbench-local
+      READY_FILE: /tmp/setup-ready
+      SALT: gwbench-local-salt
+      USER_EMAIL: gwbench@example.com
+      USER_PASSWORD: gwbench-local-password
+      WEB_URL: http://langfuse-web:3000
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - '[ -f /tmp/setup-ready ]'
+      timeout: 2s
+      interval: 2s
+      retries: 90
+    image: langfuse/langfuse:4.78.0
+    mem_limit: "268435456"
+    memswap_limit: "268435456"
+    networks:
+      gwbench: null
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./gateways/langfuse/setup.mjs
+        target: /app/gwbench-setup/setup.mjs
+        read_only: true
+        bind:
+          create_host_path: true
+  langfuse-web:
+    cpus: 2
+    container_name: gwbench-langfuse-web
+    depends_on:
+      langfuse-clickhouse:
+        condition: service_healthy
+        required: true
+      langfuse-minio:
+        condition: service_healthy
+        required: true
+      langfuse-postgres:
+        condition: service_healthy
+        required: true
+      langfuse-redis:
+        condition: service_healthy
+        required: true
+    entrypoint:
+      - sh
+      - -c
+      - |
+        export LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY="$$(node -e "process.stdout.write(require('node:crypto').generateKeyPairSync('ec',{namedCurve:'prime256v1',privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}}).privateKey)")"
+        exec dumb-init -- ./web/entrypoint.sh node ./web/server.js --keepAliveTimeout 110000
+    environment:
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_PASSWORD: gwbench-local
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      DATABASE_URL: postgresql://postgres:gwbench-local@langfuse-postgres:5432/postgres
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true"
+      LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS: "60"
+      LANGFUSE_AI_GATEWAY_PUBLIC_URL: http://localhost:8080
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: gwbench-local-gateway-service-key
+      LANGFUSE_INIT_ORG_ID: gwbench-org
+      LANGFUSE_INIT_ORG_NAME: gwbench
+      LANGFUSE_INIT_PROJECT_ID: gwbench-project
+      LANGFUSE_INIT_PROJECT_NAME: gwbench-traces
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-gwbench-local
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-gwbench-local
+      LANGFUSE_INIT_USER_EMAIL: gwbench@example.com
+      LANGFUSE_INIT_USER_NAME: gwbench
+      LANGFUSE_INIT_USER_PASSWORD: gwbench-local-password
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: mock-llm
+      LANGFUSE_LOG_LEVEL: warn
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+      NEXTAUTH_SECRET: gwbench-local-nextauth-secret
+      NEXTAUTH_URL: http://langfuse-web:3000
+      NODE_OPTIONS: --max-old-space-size=896
+      REDIS_AUTH: gwbench-local
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      SALT: gwbench-local-salt
+      TELEMETRY_ENABLED: "false"
+    hostname: langfuse-web
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO
+        - /dev/null
+        - http://langfuse-web:3000/api/public/health
+      timeout: 5s
+      interval: 5s
+      retries: 60
+      start_period: 40s
+    image: langfuse/langfuse:4.78.0
+    mem_limit: "1342177280"
+    memswap_limit: "1342177280"
+    networks:
+      gwbench: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 3000
+        published: "13030"
+        protocol: tcp
+    restart: "no"
+  langfuse-worker:
+    cpus: 1
+    container_name: gwbench-langfuse-worker
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+        required: true
+    environment:
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+      CLICKHOUSE_PASSWORD: gwbench-local
+      CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+      CLICKHOUSE_USER: clickhouse
+      DATABASE_URL: postgresql://postgres:gwbench-local@langfuse-postgres:5432/postgres
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: mock-llm
+      LANGFUSE_LOG_LEVEL: warn
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+      LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+      LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+      LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+      LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+      NEXTAUTH_SECRET: gwbench-local-nextauth-secret
+      NEXTAUTH_URL: http://langfuse-web:3000
+      NODE_OPTIONS: --max-old-space-size=640
+      REDIS_AUTH: gwbench-local
+      REDIS_HOST: langfuse-redis
+      REDIS_PORT: "6379"
+      SALT: gwbench-local-salt
+      TELEMETRY_ENABLED: "false"
+    hostname: langfuse-worker
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - -qO
+        - /dev/null
+        - http://langfuse-worker:3030/api/health
+      timeout: 5s
+      interval: 5s
+      retries: 30
+      start_period: 20s
+    image: langfuse/langfuse-worker:4.78.0
+    mem_limit: "1073741824"
+    memswap_limit: "1073741824"
+    networks:
+      gwbench: null
+    restart: "no"
+  mock-llm:
+    build:
+      context: ./mock-llm
+      dockerfile: Dockerfile
+    cpus: 2
+    container_name: gwbench-mock-llm
+    environment:
+      MOCK_429_RATE: ""
+      MOCK_FAIL_RATE: ""
+      MOCK_FAIL_STATUS: ""
+      MOCK_ITL_MS: "5"
+      MOCK_LATENCY_MS: "60"
+      MOCK_OUTPUT_TOKENS: "40"
+      MOCK_RETRY_AFTER_S: ""
+      MOCK_TTFT_MS: "20"
+      MOCK_WORKER_THREADS: "8"
+    hostname: mock-llm
+    healthcheck:
+      test:
+        - CMD
+        - mock-upstream
+        - --healthcheck
+      timeout: 3s
+      interval: 2s
+      retries: 15
+      start_period: 1s
+    image: gwbench/mock-llm:0.1.0
+    mem_limit: "536870912"
+    memswap_limit: "536870912"
+    networks:
+      gwbench: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 9000
+        published: "19000"
+        protocol: tcp
+    restart: "no"
+  sampler:
+    profiles:
+      - tools
+    entrypoint:
+      - python3
+      - -B
+      - /scripts/sampler.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+    image: python:3.13.9-alpine3.22
+    networks:
+      gwbench: null
+    volumes:
+      - type: bind
+        source: ./scripts/sampler.py
+        target: /scripts/sampler.py
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./results
+        target: /results
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        bind:
+          create_host_path: true
+networks:
+  gwbench:
+    name: gwbench
+volumes:
+  langfuse-clickhouse-data:
+    name: gwbench-langfuse-clickhouse-data
+  langfuse-minio-data:
+    name: gwbench-langfuse-minio-data
+  langfuse-postgres-data:
+    name: gwbench-langfuse-postgres-data
+x-langfuse-common:
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+  CLICKHOUSE_PASSWORD: gwbench-local
+  CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  DATABASE_URL: postgresql://postgres:gwbench-local@langfuse-postgres:5432/postgres
+  ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: mock-llm
+  LANGFUSE_LOG_LEVEL: warn
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+  NEXTAUTH_SECRET: gwbench-local-nextauth-secret
+  NEXTAUTH_URL: http://langfuse-web:3000
+  REDIS_AUTH: gwbench-local
+  REDIS_HOST: langfuse-redis
+  REDIS_PORT: "6379"
+  SALT: gwbench-local-salt
+  TELEMETRY_ENABLED: "false"

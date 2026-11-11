@@ -1,0 +1,268 @@
+{
+  "target": "langfuse",
+  "profile": "prod",
+  "scenario": "s1",
+  "run": 1,
+  "started": "2026-11-11T05:18:27Z",
+  "finished": "2026-11-11T05:18:54Z",
+  "k6": {
+    "script": "scenarios/s1_baseline.js",
+    "exit_code": 0,
+    "target_url": "http://langfuse-ai-gateway:8080/openai/v1",
+    "model": "gpt-mock",
+    "runner_flags": "repeat=1 duration=20 rate=100 warmup=5 raw=0",
+    "plan": {
+      "t0_ms": 1794374308049,
+      "rates": [
+        100
+      ],
+      "step_s": 20,
+      "warmup_s": 5,
+      "ramp_s": 1,
+      "total_s": 26,
+      "steps": [
+        {
+          "name": "warmup",
+          "phase": "warmup",
+          "rate": 100,
+          "fromS": 0,
+          "toS": 5
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 100,
+          "fromS": 5,
+          "toS": 6
+        },
+        {
+          "name": "r100",
+          "phase": "measure",
+          "rate": 100,
+          "fromS": 6,
+          "toS": 26
+        }
+      ]
+    }
+  },
+  "git": {
+    "sha": "9fc7231dad53159fc23336a523c2157fd2053b33",
+    "branch": "main",
+    "dirty": false
+  },
+  "mock_knobs": {
+    "MOCK_RETRY_AFTER_S": "",
+    "MOCK_TTFT_MS": "20",
+    "MOCK_WORKER_THREADS": "8",
+    "MOCK_FAIL_RATE": "",
+    "MOCK_ITL_MS": "5",
+    "MOCK_429_RATE": "",
+    "MOCK_OUTPUT_TOKENS": "40",
+    "MOCK_FAIL_STATUS": "",
+    "MOCK_LATENCY_MS": "60",
+    "MOCK_HOST": "0.0.0.0",
+    "MOCK_PORT": "9000"
+  },
+  "images": [
+    {
+      "ref": "cgr.dev/chainguard/minio:latest@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a",
+      "id": "sha256:58c6d4337e7a690f91e0ed800d86f3c4e1c83b855c5cb0806b788c2a93d3ce91",
+      "repo_digests": [
+        "cgr.dev/chainguard/minio@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a"
+      ],
+      "architecture": "arm64",
+      "created": "2026-11-09T20:44:16Z"
+    },
+    {
+      "ref": "docker.io/clickhouse/clickhouse-server:26.3.62.3",
+      "id": "sha256:16af23b0656d3d8b0243ad3a45b47063deaf8099bdd9054c628a0194951ab60b",
+      "repo_digests": [
+        "clickhouse/clickhouse-server@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a"
+      ],
+      "architecture": "arm64",
+      "created": "2026-10-26T15:11:04.85734894Z"
+    },
+    {
+      "ref": "gwbench/k6:2.3.0-sse0.2.0",
+      "id": "sha256:9f6d45b0ef770930dda543521c5293e21d1157632266e4dbc6b43fbd4d1e8c1b",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:42:37.052006719Z"
+    },
+    {
+      "ref": "gwbench/mock-llm:0.1.0",
+      "id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:29:11.390168096Z"
+    },
+    {
+      "ref": "langfuse/ai-gateway:4.78.0",
+      "id": "sha256:40ccc0dbbcd25cccaaf450b2a70a3130edbd204b4a01b00a85e3a7816d2c13e1",
+      "repo_digests": [
+        "langfuse/ai-gateway@sha256:a9d9af37968a2ff9dcdbc614fef9702fc6126a586abc1d6a869b326efa1c447f"
+      ],
+      "architecture": "arm64",
+      "created": "2026-11-10T13:22:34.464948422Z"
+    },
+    {
+      "ref": "langfuse/langfuse-worker:4.78.0",
+      "id": "sha256:4dc3fb1beeec1c51d264b1f801ccae3fb4db81bb225a98b17db27274a1a94e0e",
+      "repo_digests": [
+        "langfuse/langfuse-worker@sha256:175a32200b9908b283104e67b84d080381e841daa8ee6692f5bb26538df1a59e"
+      ],
+      "architecture": "arm64",
+      "created": "2026-11-10T13:23:11.561389823Z"
+    },
+    {
+      "ref": "langfuse/langfuse:4.78.0",
+      "id": "sha256:72151c3d6cf7b3fe4ccf9eef23280ed3f3ed9e9038af9de64216d7db58fb9e6d",
+      "repo_digests": [
+        "langfuse/langfuse@sha256:037188385ac6612d3494319fa060052da407b235502874c7ea79ade583c29002"
+      ],
+      "architecture": "arm64",
+      "created": "2026-11-10T13:22:59.549366023Z"
+    },
+    {
+      "ref": "postgres:17.6-alpine3.22",
+      "id": "sha256:29e645e20571728f22df398b9954bb6c1cefec390d99ed4e26308fc2f52d6a37",
+      "repo_digests": [
+        "postgres@sha256:ef257d85f76e48da1c64832459b59fcaba1a4dac97bf5d7450c77753542eee94"
+      ],
+      "architecture": "arm64",
+      "created": "2025-10-15T18:23:03Z"
+    },
+    {
+      "ref": "python:3.13.9-alpine3.22",
+      "id": "sha256:052cb92092122a08c5f6bc22c9983b9bab843e9790a99e69e867e460d7346571",
+      "repo_digests": [
+        "python@sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1"
+      ],
+      "architecture": "arm64",
+      "created": "2025-10-14T21:49:24Z"
+    },
+    {
+      "ref": "redis:8.2.2-alpine3.22",
+      "id": "sha256:6d6ad37e55a997e820e5769290704abcdefd8a91c6674afcfb28f053975b4a67",
+      "repo_digests": [
+        "redis@sha256:59b6e694653476de2c992937ebe1c64182af4728e54bb49e9b7a6c26614d8933"
+      ],
+      "architecture": "arm64",
+      "created": "2025-10-03T12:18:48Z"
+    }
+  ],
+  "containers": [
+    {
+      "name": "gwbench-langfuse-ai-gateway",
+      "image": "langfuse/ai-gateway:4.78.0",
+      "image_id": "sha256:40ccc0dbbcd25cccaaf450b2a70a3130edbd204b4a01b00a85e3a7816d2c13e1",
+      "cpus": 2.0,
+      "mem_limit_bytes": 2147483648,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-clickhouse",
+      "image": "docker.io/clickhouse/clickhouse-server:26.3.62.3",
+      "image_id": "sha256:16af23b0656d3d8b0243ad3a45b47063deaf8099bdd9054c628a0194951ab60b",
+      "cpus": 2.0,
+      "mem_limit_bytes": 1610612736,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-minio",
+      "image": "cgr.dev/chainguard/minio:latest@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a",
+      "image_id": "sha256:58c6d4337e7a690f91e0ed800d86f3c4e1c83b855c5cb0806b788c2a93d3ce91",
+      "cpus": 1.0,
+      "mem_limit_bytes": 402653184,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-postgres",
+      "image": "postgres:17.6-alpine3.22",
+      "image_id": "sha256:29e645e20571728f22df398b9954bb6c1cefec390d99ed4e26308fc2f52d6a37",
+      "cpus": 1.0,
+      "mem_limit_bytes": 536870912,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-redis",
+      "image": "redis:8.2.2-alpine3.22",
+      "image_id": "sha256:6d6ad37e55a997e820e5769290704abcdefd8a91c6674afcfb28f053975b4a67",
+      "cpus": 1.0,
+      "mem_limit_bytes": 268435456,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-setup",
+      "image": "langfuse/langfuse:4.78.0",
+      "image_id": "sha256:72151c3d6cf7b3fe4ccf9eef23280ed3f3ed9e9038af9de64216d7db58fb9e6d",
+      "cpus": 0.5,
+      "mem_limit_bytes": 268435456,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-web",
+      "image": "langfuse/langfuse:4.78.0",
+      "image_id": "sha256:72151c3d6cf7b3fe4ccf9eef23280ed3f3ed9e9038af9de64216d7db58fb9e6d",
+      "cpus": 2.0,
+      "mem_limit_bytes": 1342177280,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-langfuse-worker",
+      "image": "langfuse/langfuse-worker:4.78.0",
+      "image_id": "sha256:4dc3fb1beeec1c51d264b1f801ccae3fb4db81bb225a98b17db27274a1a94e0e",
+      "cpus": 1.0,
+      "mem_limit_bytes": 1073741824,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-mock-llm",
+      "image": "gwbench/mock-llm:0.1.0",
+      "image_id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "cpus": 2.0,
+      "mem_limit_bytes": 536870912,
+      "mock_env": {
+        "MOCK_RETRY_AFTER_S": "",
+        "MOCK_TTFT_MS": "20",
+        "MOCK_WORKER_THREADS": "8",
+        "MOCK_FAIL_RATE": "",
+        "MOCK_ITL_MS": "5",
+        "MOCK_429_RATE": "",
+        "MOCK_OUTPUT_TOKENS": "40",
+        "MOCK_FAIL_STATUS": "",
+        "MOCK_LATENCY_MS": "60",
+        "MOCK_HOST": "0.0.0.0",
+        "MOCK_PORT": "9000"
+      }
+    }
+  ],
+  "compose_files": [
+    "docker-compose.base.yml",
+    "gateways/langfuse/compose.yml"
+  ],
+  "config_snapshot": [
+    "gateways/langfuse/compose.yml",
+    "gateways/langfuse/clickhouse-low-memory.xml",
+    "gateways/langfuse/setup.mjs"
+  ],
+  "host": {
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1",
+    "cpu_cores": 8,
+    "memory_bytes": 17179869184
+  },
+  "docker": {
+    "server_version": "25.0.3",
+    "operating_system": "Docker Desktop",
+    "architecture": "aarch64",
+    "ncpu": 8,
+    "mem_total_bytes": 8222334976,
+    "storage_driver": "overlay2"
+  },
+  "notes": [
+    "Read results from the per-step sub-metrics in summary.json (e.g. http_req_duration{step:r500}); whole-run totals include warm-up and ramp.",
+    "resources.csv covers the whole run including warm-up; timestamps are unix seconds. k6.plan.t0_ms is when the load started."
+  ]
+}
