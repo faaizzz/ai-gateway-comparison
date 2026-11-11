@@ -826,3 +826,68 @@ two response-size variants) 1 per target, S3 **2** per target: the second run wa
 Bifrost's TTFT jumped from 32 ms at 50 RPS to 43 ms at 100 RPS, and the repeat confirmed it
 (within 1 ms of the first run for every target and step). Everything ran in the minimal profile
 with no other container running. Results: `results/2026-11-11/SUMMARY-S2-S5.md`.
+
+## D28 - S6 to S10: run plan, profiles and methods
+
+Coordinator plan for story #10 (budget about 6 hours of runs). Order: S10 and S9 first, then S6,
+S7, S8. Every run uses the mock at `MOCK_LATENCY_MS=60`, non-streaming, a quiet Docker VM with
+only `gwbench-*` containers (D20), and scripts judged by the rules of D15, D24 and D26.
+
+**Common rate.** S6, S7 and S8 run at **100 RPS** (every gateway sustains it; LiteLLM's limit is
+about 300, D25), one step of 60 s after a 15 s warm-up, 1 run per configuration unless a section
+below says more. The scenario scripts are `k6/scenarios/fixed_rate.js` (S6, S7) and
+`s8_faults.js` (S8).
+
+**New profiles** (same target contract, results under `results/<date>/<target>/<profile>/<scenario>/`).
+Thin overlays carry a `# ci-with:` line so `scripts/ci-checks.sh` validates them merged with the
+overlays they extend.
+
+| target | profile | what it is | scenario |
+| --- | --- | --- | --- |
+| litellm | `prod-langfuse` | `prod` + `success_callback: [langfuse]`, the Langfuse stack as tracing backend | S6 |
+| litellm | `prod-rl` | `prod` + `rpm_limit` 10,000,000, `tpm_limit` 10,000,000,000, `max_parallel_requests` 100,000 on the virtual key | S7 |
+| litellm | `retry` | `minimal` + `num_retries: 2`, cooldowns off | S8 |
+| bifrost | `logs` | `minimal` + SQLite log store on + logging plugin on (no config store, no telemetry, no governance) | S6 |
+| bifrost | `prod-rl` | `prod` + a request and token rate limit on the virtual key (10,000,000 requests and 10,000,000,000 tokens per hour) | S7 |
+| bifrost | `retry` | `minimal` + provider `max_retries: 2` | S8 |
+| langfuse | `full` | `prod` stack with `LANGFUSE_INGESTION_MODE=FULL` | S6 |
+
+**What each gateway supports** (found while adding the profiles; details in the notes of the summary):
+the Langfuse AI gateway has no retries, fallbacks or caching (its docs list them as known beta
+limitations) and no per-key rate limit in the self-hosted build, so it gets no `retry` or `prod-rl`
+profile: S8 runs it without retries and S7 compares `minimal` and `prod` only.
+
+**S6 tracing.** LiteLLM: `prod` (no callback) against `prod-langfuse`, the Langfuse Web, worker and
+stores run as the tracing backend. This is the one case of two stacks at once: the Langfuse services
+are a dependency of the gateway under test, not a second gateway; the Langfuse AI gateway and its
+setup container are moved behind a compose profile that is never enabled
+(`gateways/litellm/docker-compose.prod-langfuse.yml`). The whole stack counts for memory and CPU.
+Bifrost: `minimal` (log store off) against `logs` (log store only) and `prod` as a reference.
+Langfuse gateway: ingestion NONE (`minimal`), USAGE (`prod`), FULL (`full`).
+**Trace lag and loss** (`gateways/langfuse/traces.py`, run by the runner after k6 when the target
+sets `TARGET_POST_RUN`): requests carry no tags (the body is the same for every gateway); traces are
+counted in the time window of the run instead. Loss = requests k6 sent in the whole run minus traces
+in ClickHouse for that window, counted after the ingestion queue drained. Lag per trace = ClickHouse
+insert time minus the request's end time, computed over all traces (no sampling, no load on the
+Langfuse API during the measurement); a bounded sample of trace ids is also fetched through the
+public API after the run to confirm the counts. Details and caveats are in the summary notes.
+
+**S7.** Per target, `minimal` against `prod` against `prod-rl` (where the gateway supports key rate
+limits), 100 RPS. One key only: the contract's "many keys" variant was not run.
+
+**S8.** `MOCK_FAIL_RATE=0.05` (HTTP 500, scenario `s8-fail`) and `MOCK_429_RATE=0.05` (HTTP 429 with
+`Retry-After: 1`, scenario `s8-429`) at 100 RPS. The runner starts the stack with a healthy mock,
+runs `verify.sh`, then recreates the mock with the fault knob (`gw_faults` in `scripts/lib.sh`), so
+the verify checks do not depend on luck. Retries: 2 everywhere they exist (LiteLLM `num_retries` with
+cooldowns off, Bifrost `max_retries`), no fallbacks. `direct` gives the no-gateway reference.
+
+**S9.** 30 minutes at 100 RPS, `minimal` profile, as six 300 s windows (steps `w1` to `w6`, so k6
+writes per-window sub-metrics). Memory growth is the least-squares slope of the memory samples in
+MiB per 10 minutes, p99 drift is the per-window p99. `direct` runs as the control.
+
+**S10.** `scripts/sweep-s10.sh`: per gateway the slice of the ladder `k6/lib/ladder.js MAX_RATE_LADDER`
+that covers its limit and one or two steps beyond it, 30 s steps after a 10 s warm-up, 3 repeats on
+fresh stacks, judged with `scripts/sustained.py` (D15 + D24, k6 under 4 cores). Bifrost climbs to
+16000 RPS (D26). Median and range of the highest sustained step; a result limited by k6 or by the
+top of the ladder is reported as "at least" (D17). The `minimal` profile is the S10 profile; `prod`
+was run only where the time budget allowed (see the summary).

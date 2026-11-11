@@ -2,6 +2,7 @@
 """Per-scenario summary tables for S2 to S5 (story #9): every target side by side with direct.
 
     scripts/summary_tables.py <results/date> [--out results/date/SUMMARY-S2-S5.md] [--profile minimal]
+    scripts/summary_tables.py <results/date> --set s6-s10      # S6 to S10 (story #10), see summary_s6_s10.py
 
 Reads results/<date>/<target>/<profile>/<scenario>/run-*/ (summary.json, metadata.json,
 resources.csv) for the scenarios s2, s3, s4, s5, s5-resp10k and s5-resp100k, and writes one
@@ -557,7 +558,13 @@ def main():
     ap.add_argument("date_dir")
     ap.add_argument("--out")
     ap.add_argument("--profile", default="minimal")
+    ap.add_argument("--set", default="s2-s5", choices=["s2-s5", "s6-s10"], help="s6-s10: S6 to S10 (scripts/summary_s6_s10.py, SUMMARY-S6-S10.md)")
     a = ap.parse_args()
+    if a.set == "s6-s10":
+        from summary_s6_s10 import generate
+
+        generate(a.date_dir, a.out)
+        return
     rep = Report(a.date_dir.rstrip("/"), a.profile)
     rep.header()
     notes = os.path.join(rep.date_dir, "SUMMARY-S2-S5-notes.md")
