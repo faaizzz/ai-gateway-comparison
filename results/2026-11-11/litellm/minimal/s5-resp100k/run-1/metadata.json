@@ -1,0 +1,174 @@
+{
+  "target": "litellm",
+  "profile": "minimal",
+  "scenario": "s5-resp100k",
+  "run": 1,
+  "started": "2026-11-11T09:18:59Z",
+  "finished": "2026-11-11T09:20:15Z",
+  "k6": {
+    "script": "scenarios/s5_response.js",
+    "exit_code": 0,
+    "target_url": "http://litellm:4000/v1",
+    "model": "mock-gpt",
+    "runner_flags": "repeat=1 duration=default rate=default warmup=default raw=0",
+    "plan": {
+      "t0_ms": 1794388739498,
+      "rates": [
+        100
+      ],
+      "step_s": 60,
+      "warmup_s": 15,
+      "ramp_s": 1,
+      "total_s": 76,
+      "steps": [
+        {
+          "name": "warmup",
+          "phase": "warmup",
+          "rate": 100,
+          "fromS": 0,
+          "toS": 15
+        },
+        {
+          "name": "ramp",
+          "phase": "ramp",
+          "rate": 100,
+          "fromS": 15,
+          "toS": 16
+        },
+        {
+          "name": "r100",
+          "phase": "measure",
+          "rate": 100,
+          "fromS": 16,
+          "toS": 76
+        }
+      ]
+    }
+  },
+  "git": {
+    "sha": "1bfd0e72e25a900b5a123309f8b559bab2611238",
+    "branch": "main",
+    "dirty": false
+  },
+  "mock_knobs": {
+    "MOCK_OUTPUT_TOKENS": "17000",
+    "MOCK_WORKER_THREADS": "8",
+    "MOCK_RETRY_AFTER_S": "",
+    "MOCK_FAIL_RATE": "",
+    "MOCK_FAIL_STATUS": "",
+    "MOCK_429_RATE": "",
+    "MOCK_LATENCY_MS": "60",
+    "MOCK_TTFT_MS": "20",
+    "MOCK_ITL_MS": "5",
+    "MOCK_HOST": "0.0.0.0",
+    "MOCK_PORT": "9000"
+  },
+  "images": [
+    {
+      "ref": "ghcr.io/berriai/litellm:v1.109.0",
+      "id": "sha256:6f8516908206232b572b22f227d10552f775b5245ef1ffbdf5107225eca6d5d6",
+      "repo_digests": [
+        "ghcr.io/berriai/litellm@sha256:26aecfb02fb17ac6590f0549478561f9fbb3f69314317320b2e32a21beed4006"
+      ],
+      "architecture": "arm64",
+      "created": "2026-11-10T23:25:53.904868898Z"
+    },
+    {
+      "ref": "gwbench/k6:2.3.0-sse0.2.0",
+      "id": "sha256:9f6d45b0ef770930dda543521c5293e21d1157632266e4dbc6b43fbd4d1e8c1b",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:42:37.052006719Z"
+    },
+    {
+      "ref": "gwbench/mock-llm:0.1.0",
+      "id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "repo_digests": [],
+      "architecture": "arm64",
+      "created": "2026-11-10T19:29:11.390168096Z"
+    },
+    {
+      "ref": "python:3.13.9-alpine3.22",
+      "id": "sha256:052cb92092122a08c5f6bc22c9983b9bab843e9790a99e69e867e460d7346571",
+      "repo_digests": [
+        "python@sha256:e5fa639e49b85986c4481e28faa2564b45aa8021413f31026c3856e5911618b1"
+      ],
+      "architecture": "arm64",
+      "created": "2025-10-14T21:49:24Z"
+    }
+  ],
+  "containers": [
+    {
+      "name": "gwbench-litellm",
+      "image": "ghcr.io/berriai/litellm:v1.109.0",
+      "image_id": "sha256:6f8516908206232b572b22f227d10552f775b5245ef1ffbdf5107225eca6d5d6",
+      "cpus": 2.0,
+      "mem_limit_bytes": 2147483648,
+      "mock_env": {}
+    },
+    {
+      "name": "gwbench-mock-llm",
+      "image": "gwbench/mock-llm:0.1.0",
+      "image_id": "sha256:7a3766d08eebd47302529f8d1f85b804c8b359de16d6689fe136a46883cbb612",
+      "cpus": 2.0,
+      "mem_limit_bytes": 536870912,
+      "mock_env": {
+        "MOCK_OUTPUT_TOKENS": "17000",
+        "MOCK_WORKER_THREADS": "8",
+        "MOCK_RETRY_AFTER_S": "",
+        "MOCK_FAIL_RATE": "",
+        "MOCK_FAIL_STATUS": "",
+        "MOCK_429_RATE": "",
+        "MOCK_LATENCY_MS": "60",
+        "MOCK_TTFT_MS": "20",
+        "MOCK_ITL_MS": "5",
+        "MOCK_HOST": "0.0.0.0",
+        "MOCK_PORT": "9000"
+      }
+    }
+  ],
+  "container_states": [
+    {
+      "name": "gwbench-litellm",
+      "status": "running",
+      "oom_killed": false,
+      "exit_code": 0,
+      "restart_count": 0
+    },
+    {
+      "name": "gwbench-mock-llm",
+      "status": "running",
+      "oom_killed": false,
+      "exit_code": 0,
+      "restart_count": 0
+    }
+  ],
+  "other_running_containers": [],
+  "compose_files": [
+    "docker-compose.base.yml",
+    "gateways/litellm/docker-compose.minimal.yml"
+  ],
+  "config_snapshot": [
+    "gateways/litellm/config.minimal.yaml",
+    "gateways/litellm/docker-compose.minimal.yml"
+  ],
+  "host": {
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+    "machine": "arm64",
+    "cpu": "Apple M1",
+    "cpu_cores": 8,
+    "memory_bytes": 17179869184
+  },
+  "docker": {
+    "server_version": "25.0.3",
+    "operating_system": "Docker Desktop",
+    "architecture": "aarch64",
+    "ncpu": 8,
+    "mem_total_bytes": 8222334976,
+    "storage_driver": "overlay2"
+  },
+  "notes": [
+    "Read results from the per-step sub-metrics in summary.json (e.g. http_req_duration{step:r500}); whole-run totals include warm-up and ramp.",
+    "resources.csv covers the whole run including warm-up; timestamps are unix seconds. k6.plan.t0_ms is when the load started."
+  ]
+}

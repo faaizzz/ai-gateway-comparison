@@ -1,0 +1,125 @@
+time="2026-11-11T08:05:33Z" level=info msg="GWBENCH_PLAN {\"t0_ms\":1794384333745,\"rates\":[100,250,500,1000],\"step_s\":60,\"warmup_s\":15,\"ramp_s\":1,\"total_s\":259,\"steps\":[{\"name\":\"warmup\",\"phase\":\"warmup\",\"rate\":100,\"fromS\":0,\"toS\":15},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":15,\"toS\":16},{\"name\":\"r100\",\"phase\":\"measure\",\"rate\":100,\"fromS\":16,\"toS\":76},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":250,\"fromS\":76,\"toS\":77},{\"name\":\"r250\",\"phase\":\"measure\",\"rate\":250,\"fromS\":77,\"toS\":137},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":500,\"fromS\":137,\"toS\":138},{\"name\":\"r500\",\"phase\":\"measure\",\"rate\":500,\"fromS\":138,\"toS\":198},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":1000,\"fromS\":198,\"toS\":199},{\"name\":\"r1000\",\"phase\":\"measure\",\"rate\":1000,\"fromS\":199,\"toS\":259}]}" source=console
+
+
+  █ THRESHOLDS 
+
+    checks{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r1000}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r250}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r500}
+    ✓ 'rate>=0' rate=100.00%
+
+    gateway_overhead_ms{step:r100}
+    ✓ 'max>=0' max=0
+
+    gateway_overhead_ms{step:r1000}
+    ✓ 'max>=0' max=0
+
+    gateway_overhead_ms{step:r250}
+    ✓ 'max>=0' max=0
+
+    gateway_overhead_ms{step:r500}
+    ✓ 'max>=0' max=0
+
+    http_req_duration{step:r100}
+    ✓ 'max>=0' max=408.31ms
+
+    http_req_duration{step:r1000}
+    ✓ 'max>=0' max=1.1s
+
+    http_req_duration{step:r250}
+    ✓ 'max>=0' max=355.43ms
+
+    http_req_duration{step:r500}
+    ✓ 'max>=0' max=570.36ms
+
+    http_req_failed{step:r100}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r1000}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r250}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r500}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_waiting{step:r100}
+    ✓ 'max>=0' max=408.26ms
+
+    http_req_waiting{step:r1000}
+    ✓ 'max>=0' max=1.1s
+
+    http_req_waiting{step:r250}
+    ✓ 'max>=0' max=355.2ms
+
+    http_req_waiting{step:r500}
+    ✓ 'max>=0' max=569.36ms
+
+    http_reqs{step:r100}
+    ✓ 'count>=0' count=6000
+
+    http_reqs{step:r1000}
+    ✓ 'count>=0' count=59603
+
+    http_reqs{step:r250}
+    ✓ 'count>=0' count=15000
+
+    http_reqs{step:r500}
+    ✓ 'count>=0' count=29928
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 226856  875.440383/s
+    checks_succeeded...: 100.00% 226856 out of 226856
+    checks_failed......: 0.00%   0 out of 226856
+
+    ✓ status is 200
+    ✓ has completion
+
+    CUSTOM
+    gateway_overhead_ms............: avg=0        min=0       med=0       max=0        p(90)=0        p(95)=0        p(99)=0       
+      { step:r100 }................: avg=0        min=0       med=0       max=0        p(90)=0        p(95)=0        p(99)=0       
+      { step:r1000 }...............: avg=0        min=0       med=0       max=0        p(90)=0        p(95)=0        p(99)=0       
+      { step:r250 }................: avg=0        min=0       med=0       max=0        p(90)=0        p(95)=0        p(99)=0       
+      { step:r500 }................: avg=0        min=0       med=0       max=0        p(90)=0        p(95)=0        p(99)=0       
+
+    HTTP
+    http_req_duration..............: avg=88.45ms  min=61.15ms med=63.84ms max=1.1s     p(90)=146.14ms p(95)=237.39ms p(99)=402.01ms
+      { expected_response:true }...: avg=88.45ms  min=61.15ms med=63.84ms max=1.1s     p(90)=146.14ms p(95)=237.39ms p(99)=402.01ms
+      { step:r100 }................: avg=66.74ms  min=61.62ms med=64.87ms max=408.31ms p(90)=67.73ms  p(95)=69.11ms  p(99)=94.45ms 
+      { step:r1000 }...............: avg=106.14ms min=61.15ms med=65.95ms max=1.1s     p(90)=224.06ms p(95)=304.04ms p(99)=450.34ms
+      { step:r250 }................: avg=67.09ms  min=61.56ms med=63.37ms max=355.43ms p(90)=66.34ms  p(95)=72.2ms   p(99)=185.96ms
+      { step:r500 }................: avg=70.58ms  min=61.21ms med=63.05ms max=570.36ms p(90)=70.75ms  p(95)=101.28ms p(99)=200.52ms
+    http_req_failed................: 0.00%  0 out of 113428
+      { step:r100 }................: 0.00%  0 out of 6000
+      { step:r1000 }...............: 0.00%  0 out of 59603
+      { step:r250 }................: 0.00%  0 out of 15000
+      { step:r500 }................: 0.00%  0 out of 29928
+    http_reqs......................: 113428 437.720192/s
+      { step:r100 }................: 6000   23.154081/s
+      { step:r1000 }...............: 59603  230.008786/s
+      { step:r250 }................: 15000  57.885204/s
+      { step:r500 }................: 29928  115.492558/s
+
+    EXECUTION
+    dropped_iterations.............: 471    1.817595/s
+    iteration_duration.............: avg=88.64ms  min=61.25ms med=64.03ms max=1.1s     p(90)=146.33ms p(95)=237.6ms  p(99)=402.53ms
+    iterations.....................: 113428 437.720192/s
+    vus............................: 64     min=6           max=389
+    vus_max........................: 519    min=160         max=519
+
+    NETWORK
+    data_received..................: 95 MB  367 kB/s
+    data_sent......................: 36 MB  139 kB/s
+
+
+

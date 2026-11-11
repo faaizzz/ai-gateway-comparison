@@ -19,6 +19,8 @@ Rules it applies:
   - S4 is closed loop (fixed virtual users): no target rate, so only errors and k6 CPU are
     judged; the table is labelled closed-loop.
   - Gateway-reported overhead is its own labelled column (D18), never ranked.
+  - If <date>/SUMMARY-S2-S5-notes.md exists (hand-written observations), it is copied in after the
+    header; everything else in the output is generated.
   - CPU is the mean over the step (100 = one core); memory is the peak over the step.
 Standard library only.
 """
@@ -558,6 +560,11 @@ def main():
     a = ap.parse_args()
     rep = Report(a.date_dir.rstrip("/"), a.profile)
     rep.header()
+    notes = os.path.join(rep.date_dir, "SUMMARY-S2-S5-notes.md")
+    if os.path.exists(notes):
+        with open(notes) as f:
+            rep.w(f.read().rstrip())
+            rep.w()
     rep.s2()
     rep.s3()
     rep.s4()

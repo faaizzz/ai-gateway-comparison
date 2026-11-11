@@ -1,0 +1,102 @@
+time="2026-11-11T08:58:18Z" level=info msg="GWBENCH_PLAN {\"t0_ms\":1794387498679,\"rates\":[100,100,100],\"step_s\":60,\"warmup_s\":15,\"ramp_s\":1,\"total_s\":198,\"steps\":[{\"name\":\"warmup\",\"phase\":\"warmup\",\"rate\":100,\"fromS\":0,\"toS\":15},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":15,\"toS\":16},{\"name\":\"b1k\",\"phase\":\"measure\",\"rate\":100,\"fromS\":16,\"toS\":76,\"request_bytes\":1024},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":76,\"toS\":77},{\"name\":\"b10k\",\"phase\":\"measure\",\"rate\":100,\"fromS\":77,\"toS\":137,\"request_bytes\":10240},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":137,\"toS\":138},{\"name\":\"b100k\",\"phase\":\"measure\",\"rate\":100,\"fromS\":138,\"toS\":198,\"request_bytes\":102400}]}" source=console
+
+
+  █ THRESHOLDS 
+
+    checks{step:b100k}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:b10k}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:b1k}
+    ✓ 'rate>=0' rate=100.00%
+
+    gateway_overhead_ms{step:b100k}
+    ✓ 'max>=0' max=0
+
+    gateway_overhead_ms{step:b10k}
+    ✓ 'max>=0' max=0
+
+    gateway_overhead_ms{step:b1k}
+    ✓ 'max>=0' max=0
+
+    http_req_duration{step:b100k}
+    ✓ 'max>=0' max=78.96ms
+
+    http_req_duration{step:b10k}
+    ✓ 'max>=0' max=114.48ms
+
+    http_req_duration{step:b1k}
+    ✓ 'max>=0' max=105.83ms
+
+    http_req_failed{step:b100k}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:b10k}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:b1k}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_waiting{step:b100k}
+    ✓ 'max>=0' max=77.85ms
+
+    http_req_waiting{step:b10k}
+    ✓ 'max>=0' max=114.24ms
+
+    http_req_waiting{step:b1k}
+    ✓ 'max>=0' max=105.75ms
+
+    http_reqs{step:b100k}
+    ✓ 'count>=0' count=6000
+
+    http_reqs{step:b10k}
+    ✓ 'count>=0' count=6000
+
+    http_reqs{step:b1k}
+    ✓ 'count>=0' count=6000
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 39598   199.932463/s
+    checks_succeeded...: 100.00% 39598 out of 39598
+    checks_failed......: 0.00%   0 out of 39598
+
+    ✓ status is 200
+    ✓ has completion
+
+    CUSTOM
+    gateway_overhead_ms............: avg=0       min=0       med=0       max=0        p(90)=0       p(95)=0       p(99)=0      
+      { step:b100k }...............: avg=0       min=0       med=0       max=0        p(90)=0       p(95)=0       p(99)=0      
+      { step:b10k }................: avg=0       min=0       med=0       max=0        p(90)=0       p(95)=0       p(99)=0      
+      { step:b1k }.................: avg=0       min=0       med=0       max=0        p(90)=0       p(95)=0       p(99)=0      
+
+    HTTP
+    http_req_duration..............: avg=62.71ms min=60.22ms med=62.52ms max=179.5ms  p(90)=64ms    p(95)=64.57ms p(99)=68.36ms
+      { expected_response:true }...: avg=62.71ms min=60.22ms med=62.52ms max=179.5ms  p(90)=64ms    p(95)=64.57ms p(99)=68.36ms
+      { step:b100k }...............: avg=62.9ms  min=60.55ms med=62.72ms max=78.96ms  p(90)=64.24ms p(95)=65.05ms p(99)=68.96ms
+      { step:b10k }................: avg=62.64ms min=60.42ms med=62.45ms max=114.48ms p(90)=63.95ms p(95)=64.53ms p(99)=68.33ms
+      { step:b1k }.................: avg=62.53ms min=60.22ms med=62.41ms max=105.83ms p(90)=63.8ms  p(95)=64.32ms p(99)=67.17ms
+    http_req_failed................: 0.00%  0 out of 19799
+      { step:b100k }...............: 0.00%  0 out of 6000
+      { step:b10k }................: 0.00%  0 out of 6000
+      { step:b1k }.................: 0.00%  0 out of 6000
+    http_reqs......................: 19799  99.966231/s
+      { step:b100k }...............: 6000   30.294327/s
+      { step:b10k }................: 6000   30.294327/s
+      { step:b1k }.................: 6000   30.294327/s
+
+    EXECUTION
+    iteration_duration.............: avg=63.58ms min=60.42ms med=63.36ms max=179.96ms p(90)=65.01ms p(95)=65.86ms p(99)=70.63ms
+    iterations.....................: 19799  99.966231/s
+    vus............................: 6      min=6          max=8 
+    vus_max........................: 25     min=25         max=25
+
+    NETWORK
+    data_received..................: 12 MB  60 kB/s
+    data_sent......................: 687 MB 3.5 MB/s
+
+
+

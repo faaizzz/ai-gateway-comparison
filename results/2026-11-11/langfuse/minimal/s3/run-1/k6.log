@@ -1,0 +1,161 @@
+time="2026-11-11T09:36:29Z" level=info msg="GWBENCH_PLAN {\"t0_ms\":1794389789882,\"rates\":[50,100],\"step_s\":60,\"warmup_s\":15,\"ramp_s\":1,\"total_s\":137,\"steps\":[{\"name\":\"warmup\",\"phase\":\"warmup\",\"rate\":50,\"fromS\":0,\"toS\":15},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":50,\"fromS\":15,\"toS\":16},{\"name\":\"r50\",\"phase\":\"measure\",\"rate\":50,\"fromS\":16,\"toS\":76},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":76,\"toS\":77},{\"name\":\"r100\",\"phase\":\"measure\",\"rate\":100,\"fromS\":77,\"toS\":137}]}" source=console
+
+
+  █ THRESHOLDS 
+
+    checks{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    checks{step:r50}
+    ✓ 'rate>=0' rate=100.00%
+
+    gateway_overhead_ms{step:r100}
+    ✓ 'max>=0' max=0
+
+    gateway_overhead_ms{step:r50}
+    ✓ 'max>=0' max=0
+
+    http_req_duration{step:r100}
+    ✓ 'max>=0' max=365.7ms
+
+    http_req_duration{step:r50}
+    ✓ 'max>=0' max=354.86ms
+
+    http_req_failed{step:r100}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_failed{step:r50}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_waiting{step:r100}
+    ✓ 'max>=0' max=0s
+
+    http_req_waiting{step:r50}
+    ✓ 'max>=0' max=0s
+
+    http_reqs{step:r100}
+    ✓ 'count>=0' count=5992
+
+    http_reqs{step:r50}
+    ✓ 'count>=0' count=3000
+
+    stream_chunks{step:r100}
+    ✓ 'max>=0' max=40
+
+    stream_chunks{step:r50}
+    ✓ 'max>=0' max=40
+
+    stream_failed{step:r100}
+    ✓ 'rate>=0' rate=0.00%
+
+    stream_failed{step:r50}
+    ✓ 'rate>=0' rate=0.00%
+
+    stream_faithful{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    stream_faithful{step:r50}
+    ✓ 'rate>=0' rate=100.00%
+
+    stream_itl_ms{step:r100}
+    ✓ 'max>=0' max=28.81ms
+
+    stream_itl_ms{step:r50}
+    ✓ 'max>=0' max=64.67ms
+
+    stream_max_gap_ms{step:r100}
+    ✓ 'max>=0' max=28.81ms
+
+    stream_max_gap_ms{step:r50}
+    ✓ 'max>=0' max=64.67ms
+
+    stream_total_ms{step:r100}
+    ✓ 'max>=0' max=365.7ms
+
+    stream_total_ms{step:r50}
+    ✓ 'max>=0' max=354.86ms
+
+    stream_ttft_ms{step:r100}
+    ✓ 'max>=0' max=115.04ms
+
+    stream_ttft_ms{step:r50}
+    ✓ 'max>=0' max=103.14ms
+
+    stream_usage{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    stream_usage{step:r50}
+    ✓ 'rate>=0' rate=100.00%
+
+    streams{step:r100}
+    ✓ 'count>=0' count=5992
+
+    streams{step:r50}
+    ✓ 'count>=0' count=3000
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 9864    71.832327/s
+    checks_succeeded...: 100.00% 9864 out of 9864
+    checks_failed......: 0.00%   0 out of 9864
+
+    ✓ stream status 200
+
+    CUSTOM
+    gateway_overhead_ms...: avg=0        min=0        med=0        max=0        p(90)=0        p(95)=0        p(99)=0       
+      { step:r100 }.......: avg=0        min=0        med=0        max=0        p(90)=0        p(95)=0        p(99)=0       
+      { step:r50 }........: avg=0        min=0        med=0        max=0        p(90)=0        p(95)=0        p(99)=0       
+    sse_event.............: 434016  3160.622375/s
+    stream_chunks.........: avg=40       min=40       med=40       max=40       p(90)=40       p(95)=40       p(99)=40      
+      { step:r100 }.......: avg=40       min=40       med=40       max=40       p(90)=40       p(95)=40       p(99)=40      
+      { step:r50 }........: avg=40       min=40       med=40       max=40       p(90)=40       p(95)=40       p(99)=40      
+    stream_failed.........: 0.00%   0 out of 9864
+      { step:r100 }.......: 0.00%   0 out of 5992
+      { step:r50 }........: 0.00%   0 out of 3000
+    stream_faithful.......: 100.00% 9864 out of 9864
+      { step:r100 }.......: 100.00% 5992 out of 5992
+      { step:r50 }........: 100.00% 3000 out of 3000
+    stream_itl_ms.........: avg=6.44ms   min=8.95µs   med=6.83ms   max=64.67ms  p(90)=7.31ms   p(95)=7.61ms   p(99)=8.39ms  
+      { step:r100 }.......: avg=6.39ms   min=8.95µs   med=6.8ms    max=28.81ms  p(90)=7.27ms   p(95)=7.56ms   p(99)=8.39ms  
+      { step:r50 }........: avg=6.51ms   min=9.12µs   med=6.88ms   max=64.67ms  p(90)=7.36ms   p(95)=7.68ms   p(99)=8.42ms  
+    stream_max_gap_ms.....: avg=8.58ms   min=7.11ms   med=8.12ms   max=64.67ms  p(90)=9.45ms   p(95)=10.58ms  p(99)=16.87ms 
+      { step:r100 }.......: avg=8.41ms   min=7.11ms   med=8.12ms   max=28.81ms  p(90)=9.41ms   p(95)=10.39ms  p(99)=13.71ms 
+      { step:r50 }........: avg=8.96ms   min=7.22ms   med=8.11ms   max=64.67ms  p(90)=9.46ms   p(95)=11.17ms  p(99)=37.31ms 
+    stream_total_ms.......: avg=295.64ms min=280.16ms med=294.96ms max=365.7ms  p(90)=301.8ms  p(95)=304.09ms p(99)=317.54ms
+      { step:r100 }.......: avg=293.39ms min=280.16ms med=293.08ms max=365.7ms  p(90)=298.24ms p(95)=300.15ms p(99)=307.29ms
+      { step:r50 }........: avg=299.21ms min=284.16ms med=298.38ms max=354.86ms p(90)=304.09ms p(95)=306.51ms p(99)=339.43ms
+    stream_ttft_ms........: avg=44.25ms  min=28.07ms  med=44.22ms  max=115.04ms p(90)=46.82ms  p(95)=48.06ms  p(99)=54.01ms 
+      { step:r100 }.......: avg=43.78ms  min=28.07ms  med=43.99ms  max=115.04ms p(90)=45.79ms  p(95)=46.83ms  p(99)=53.15ms 
+      { step:r50 }........: avg=44.91ms  min=28.98ms  med=45.03ms  max=103.14ms p(90)=47.48ms  p(95)=48.64ms  p(99)=54.14ms 
+    stream_usage..........: 100.00% 9864 out of 9864
+      { step:r100 }.......: 100.00% 5992 out of 5992
+      { step:r50 }........: 100.00% 3000 out of 3000
+    streams...............: 9864    71.832327/s
+      { step:r100 }.......: 5992    43.635371/s
+      { step:r50 }........: 3000    21.846815/s
+
+    HTTP
+    http_req_duration.....: avg=295.66ms min=280.18ms med=294.98ms max=365.7ms  p(90)=301.84ms p(95)=304.1ms  p(99)=317.42ms
+      { step:r100 }.......: avg=293.41ms min=280.18ms med=293.1ms  max=365.7ms  p(90)=298.23ms p(95)=300.18ms p(99)=307.29ms
+      { step:r50 }........: avg=299.24ms min=284.17ms med=298.41ms max=354.86ms p(90)=304.08ms p(95)=306.44ms p(99)=339.43ms
+    http_req_failed.......: 0.00%   0 out of 0
+      { step:r100 }.......: 0.00%   0 out of 0
+      { step:r50 }........: 0.00%   0 out of 0
+    http_reqs.............: 9864    71.832327/s
+      { step:r100 }.......: 5992    43.635371/s
+      { step:r50 }........: 3000    21.846815/s
+
+    EXECUTION
+    dropped_iterations....: 11      0.080105/s
+    iteration_duration....: avg=295.85ms min=280.29ms med=295.16ms max=365.86ms p(90)=302.06ms p(95)=304.37ms p(99)=317.89ms
+    iterations............: 9864    71.832327/s
+    vus...................: 29      min=14           max=31
+    vus_max...............: 36      min=25           max=36
+
+    NETWORK
+    data_received.........: 86 MB   628 kB/s
+    data_sent.............: 4.0 MB  29 kB/s
+
+
+

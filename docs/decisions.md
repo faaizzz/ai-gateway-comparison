@@ -820,3 +820,9 @@ JSON escaping. **Response size** is a separate, optional pair of runs (`s5-resp1
 `s5-resp100k`): one 100 RPS step with the small request while the mock is started with
 `MOCK_OUTPUT_TOKENS=1700` (about 10 KB) or `17000` (about 100 KB); the knob is a mock start-up
 setting, so each size is its own run on a fresh stack, once per target.
+
+**Runs actually made (amends D26).** S2 3 per target, S4 and S5 (both the request-size and the
+two response-size variants) 1 per target, S3 **2** per target: the second run was added because
+Bifrost's TTFT jumped from 32 ms at 50 RPS to 43 ms at 100 RPS, and the repeat confirmed it
+(within 1 ms of the first run for every target and step). Everything ran in the minimal profile
+with no other container running. Results: `results/2026-11-11/SUMMARY-S2-S5.md`.

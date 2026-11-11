@@ -1,0 +1,153 @@
+name: gwbench
+services:
+  bifrost:
+    cpus: 2
+    container_name: gwbench-bifrost
+    depends_on:
+      mock-llm:
+        condition: service_healthy
+        required: true
+    environment:
+      GOGC: ""
+      GOMEMLIMIT: ""
+      LOG_LEVEL: error
+      UPSTREAM_API_KEY: sk-mock-upstream
+    hostname: bifrost
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null http://127.0.0.1:8080/health
+      timeout: 5s
+      interval: 3s
+      retries: 40
+      start_period: 10s
+    image: maximhq/bifrost:v2.5.1
+    mem_limit: "2147483648"
+    memswap_limit: "2147483648"
+    networks:
+      gwbench: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 8080
+        published: "18080"
+        protocol: tcp
+    restart: "no"
+    volumes:
+      - type: bind
+        source: ./gateways/bifrost/config.minimal.json
+        target: /app/data/config.json
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./gateways/bifrost/datasheet
+        target: /app/datasheet
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: volume
+        source: bifrost-data
+        target: /app/data
+        volume: {}
+  k6:
+    profiles:
+      - tools
+    build:
+      context: ./k6
+      dockerfile: Dockerfile
+    environment:
+      K6_NO_USAGE_REPORT: "true"
+      K6_PROMETHEUS_RW_PUSH_INTERVAL: 2s
+      K6_PROMETHEUS_RW_SERVER_URL: http://gwbench-prometheus:9090/api/v1/write
+      K6_PROMETHEUS_RW_TREND_STATS: p(50),p(95),p(99),avg,max
+    image: gwbench/k6:2.3.0-sse0.2.0
+    networks:
+      gwbench: null
+    user: "501:20"
+    volumes:
+      - type: bind
+        source: ./k6
+        target: /k6
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./results
+        target: /results
+        bind:
+          create_host_path: true
+    working_dir: /k6
+  mock-llm:
+    build:
+      context: ./mock-llm
+      dockerfile: Dockerfile
+    cpus: 2
+    container_name: gwbench-mock-llm
+    environment:
+      MOCK_429_RATE: ""
+      MOCK_FAIL_RATE: ""
+      MOCK_FAIL_STATUS: ""
+      MOCK_ITL_MS: "5"
+      MOCK_LATENCY_MS: "60"
+      MOCK_OUTPUT_TOKENS: "40"
+      MOCK_RETRY_AFTER_S: ""
+      MOCK_TTFT_MS: "20"
+      MOCK_WORKER_THREADS: "8"
+    hostname: mock-llm
+    healthcheck:
+      test:
+        - CMD
+        - mock-upstream
+        - --healthcheck
+      timeout: 3s
+      interval: 2s
+      retries: 15
+      start_period: 1s
+    image: gwbench/mock-llm:0.1.0
+    mem_limit: "536870912"
+    memswap_limit: "536870912"
+    networks:
+      gwbench: null
+    ports:
+      - mode: ingress
+        host_ip: 127.0.0.1
+        target: 9000
+        published: "19000"
+        protocol: tcp
+    restart: "no"
+  sampler:
+    profiles:
+      - tools
+    entrypoint:
+      - python3
+      - -B
+      - /scripts/sampler.py
+    environment:
+      PYTHONUNBUFFERED: "1"
+    image: python:3.13.9-alpine3.22
+    networks:
+      gwbench: null
+    volumes:
+      - type: bind
+        source: ./scripts/sampler.py
+        target: /scripts/sampler.py
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: ./results
+        target: /results
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        bind:
+          create_host_path: true
+networks:
+  gwbench:
+    name: gwbench
+volumes:
+  bifrost-data:
+    name: gwbench-bifrost-data

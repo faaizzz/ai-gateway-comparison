@@ -1,0 +1,350 @@
+# Self-hosted Langfuse (Web, worker, Postgres, ClickHouse, Redis, MinIO) plus the
+# Langfuse AI Gateway (`langfuse/ai-gateway`, Rust), in front of the mock.
+# Overlay on docker-compose.base.yml (gateways/README.md). One file for both profiles:
+# the stack is the same, only the gateway's ingestion mode differs (minimal = NONE, no
+# tracing; prod = USAGE; FULL for S6). The mode is set by langfuse-setup from
+# LANGFUSE_INGESTION_MODE, which target.env exports per profile.
+# Decisions D21 to D23 and gateways/langfuse/README.md.
+#
+# Adapted from the official docker-compose.yml of langfuse/langfuse v4.78.0, with every
+# image pinned and every service given an explicit memory and CPU limit (Docker has
+# about 8 GB for everything). Limits, not reservations: what a service really uses is in
+# resources.csv. Stack limits add up to 6.9 GB / 11 CPU on paper; none of the stores come
+# near theirs.
+#
+#   langfuse-ai-gateway  gwbench-langfuse-ai-gateway  2 CPU / 2 GB (the gateway limit)
+#   langfuse-web         gwbench-langfuse-web          2 CPU / 1.25 GB  control plane: resolves every request
+#   langfuse-worker      gwbench-langfuse-worker       1 CPU / 1 GB     ingestion into ClickHouse
+#   langfuse-postgres    gwbench-langfuse-postgres     1 CPU / 512 MB
+#   langfuse-clickhouse  gwbench-langfuse-clickhouse   2 CPU / 1.5 GB
+#   langfuse-redis       gwbench-langfuse-redis        1 CPU / 256 MB
+#   langfuse-minio       gwbench-langfuse-minio        1 CPU / 384 MB
+#   langfuse-setup       gwbench-langfuse-setup        0.5 CPU / 256 MB creates the gateway key, then idles
+#
+# All keys and passwords below are local dummy values for a throwaway stack that only
+# listens on the gwbench network (and 127.0.0.1 for the two published ports).
+# The ES256 key that signs the gateway's ingestion tokens is generated inside the Web
+# container at every start (see langfuse-web.entrypoint), so no private key is committed.
+
+x-langfuse-common: &langfuse-env
+  NEXTAUTH_URL: http://langfuse-web:3000
+  NEXTAUTH_SECRET: gwbench-local-nextauth-secret
+  SALT: gwbench-local-salt
+  # 256-bit hex, the format Langfuse requires. Dummy value.
+  ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+  DATABASE_URL: postgresql://postgres:gwbench-local@langfuse-postgres:5432/postgres
+  TELEMETRY_ENABLED: "false"
+  LANGFUSE_LOG_LEVEL: ${LANGFUSE_LOG_LEVEL:-warn}
+  CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+  CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+  CLICKHOUSE_USER: clickhouse
+  CLICKHOUSE_PASSWORD: gwbench-local
+  CLICKHOUSE_CLUSTER_ENABLED: "false"
+  REDIS_HOST: langfuse-redis
+  REDIS_PORT: "6379"
+  REDIS_AUTH: gwbench-local
+  LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+  LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+  LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+  LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+  LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+  LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
+  LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: gwbench-local-minio
+  LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+  LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+  LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+  # D2: the mock is on a private address, so its host must be on the allow-list. The gateway
+  # needs it to call the mock; Web needs it to validate a connection (and the setup's
+  # tRPC attempt). Same value on both, as the docs say. NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  # stays unset: that is what turns the allow-list off and requires https.
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: ${LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST:-mock-llm}
+
+services:
+  langfuse-postgres:
+    image: postgres:17.6-alpine3.22
+    container_name: gwbench-langfuse-postgres
+    hostname: langfuse-postgres
+    networks:
+      - gwbench
+    cpus: 1
+    mem_limit: 512m
+    memswap_limit: 512m
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: gwbench-local
+      POSTGRES_DB: postgres
+      TZ: UTC
+      PGTZ: UTC
+    command: ["postgres", "-c", "shared_buffers=64MB", "-c", "max_connections=100"]
+    volumes:
+      - langfuse-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      start_period: 3s
+      retries: 30
+    restart: "no"
+
+  langfuse-redis:
+    image: redis:8.2.2-alpine3.22
+    container_name: gwbench-langfuse-redis
+    hostname: langfuse-redis
+    networks:
+      - gwbench
+    cpus: 1
+    mem_limit: 256m
+    memswap_limit: 256m
+    # noeviction is required by BullMQ. No persistence: state lives as long as the run.
+    command: ["redis-server", "--requirepass", "gwbench-local", "--maxmemory-policy", "noeviction", "--save", "", "--appendonly", "no"]
+    environment:
+      REDISCLI_AUTH: gwbench-local
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+
+  langfuse-clickhouse:
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
+    container_name: gwbench-langfuse-clickhouse
+    hostname: langfuse-clickhouse
+    networks:
+      - gwbench
+    user: "101:101"
+    cpus: 2
+    mem_limit: 1536m
+    memswap_limit: 1536m
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: gwbench-local
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      # Small caches and no system log tables, to keep ClickHouse inside its limit.
+      - ./gateways/langfuse/clickhouse-low-memory.xml:/etc/clickhouse-server/config.d/low-memory.xml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 3s
+      timeout: 5s
+      start_period: 3s
+      retries: 40
+    restart: "no"
+
+  # MinIO from Chainguard (the image the official compose file uses); pinned by digest
+  # because Chainguard publishes only :latest for free. Event blobs go here.
+  langfuse-minio:
+    image: cgr.dev/chainguard/minio:latest@sha256:fb893e36fc369d41e92f678b17ec27378fa5bf0576aeef7ac15460c13629ab5a
+    container_name: gwbench-langfuse-minio
+    hostname: langfuse-minio
+    networks:
+      - gwbench
+    cpus: 1
+    mem_limit: 384m
+    memswap_limit: 384m
+    entrypoint: sh
+    # Creates the 'langfuse' bucket before the server starts.
+    command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: gwbench-local-minio
+    volumes:
+      - langfuse-minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 5s
+      start_period: 2s
+      retries: 30
+    restart: "no"
+
+  langfuse-worker:
+    image: langfuse/langfuse-worker:4.78.0
+    container_name: gwbench-langfuse-worker
+    hostname: langfuse-worker
+    networks:
+      - gwbench
+    cpus: 1
+    mem_limit: 1g
+    memswap_limit: 1g
+    # After Web: Web applies the Postgres and ClickHouse migrations at its start, and a worker
+    # that starts first logs errors for tables that do not exist yet.
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=640
+    healthcheck:
+      # Binds to the container hostname, not to 127.0.0.1.
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://langfuse-worker:3030/api/health"]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 30
+    restart: "no"
+
+  langfuse-web:
+    image: langfuse/langfuse:4.78.0
+    container_name: gwbench-langfuse-web
+    hostname: langfuse-web
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 1280m
+    memswap_limit: 1280m
+    depends_on:
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-minio:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+    # Published on loopback for verify.sh (reads traces through the public API) and for
+    # looking at the UI (login in gateways/langfuse/README.md).
+    ports:
+      - "127.0.0.1:${LANGFUSE_WEB_HOST_PORT:-13030}:3000"
+    # The image's own entrypoint and command, with one addition: generate the ES256 key
+    # that signs the gateway's ingestion tokens, in memory, at every start. It never touches
+    # a file or the compose config. The command is the image's default without the
+    # Datadog branch (overriding the entrypoint clears the image's command).
+    entrypoint:
+      - sh
+      - -c
+      - |
+        export LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY="$$(node -e "process.stdout.write(require('node:crypto').generateKeyPairSync('ec',{namedCurve:'prime256v1',privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}}).privateKey)")"
+        exec dumb-init -- ./web/entrypoint.sh node ./web/server.js --keepAliveTimeout 110000
+    environment:
+      <<: *langfuse-env
+      NODE_OPTIONS: --max-old-space-size=896
+      # Headless bootstrap: org, project, project keys and the owner user exist on first start.
+      LANGFUSE_INIT_ORG_ID: gwbench-org
+      LANGFUSE_INIT_ORG_NAME: gwbench
+      LANGFUSE_INIT_PROJECT_ID: gwbench-project
+      LANGFUSE_INIT_PROJECT_NAME: gwbench-traces
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-gwbench-local
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-gwbench-local
+      LANGFUSE_INIT_USER_EMAIL: gwbench@example.com
+      LANGFUSE_INIT_USER_NAME: gwbench
+      LANGFUSE_INIT_USER_PASSWORD: gwbench-local-password
+      # Gateway control plane. With both keys set (the JWT key is added by the entrypoint) the
+      # gateway is deployed; the service key is the shared secret with the gateway container.
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: gwbench-local-gateway-service-key
+      LANGFUSE_AI_GATEWAY_PUBLIC_URL: http://localhost:8080
+      # D3: Web caches the resolve lookup in Redis (default on, 60 s).
+      LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: ${LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED:-true}
+      LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS: ${LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS:-60}
+    healthcheck:
+      # Next.js binds to the container hostname (HOSTNAME), not to 127.0.0.1.
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://langfuse-web:3000/api/public/health"]
+      interval: 5s
+      timeout: 5s
+      start_period: 40s
+      retries: 60
+    restart: "no"
+
+  # Setup: creates what the UI would (gateway key, provider connection to the mock, ingestion
+  # mode) and then idles. It idles, and does not exit, because `docker compose up --wait`
+  # treats an exited container as a failure; its healthcheck turns green once the gateway
+  # key exists. It reuses the Web image (Node and the Prisma client are in it). See setup.mjs.
+  langfuse-setup:
+    image: langfuse/langfuse:4.78.0
+    container_name: gwbench-langfuse-setup
+    networks:
+      - gwbench
+    cpus: 0.5
+    mem_limit: 256m
+    memswap_limit: 256m
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+      mock-llm:
+        condition: service_healthy
+    entrypoint: ["node", "/app/gwbench-setup/setup.mjs"]
+    environment:
+      WEB_URL: http://langfuse-web:3000
+      DATABASE_URL: postgresql://postgres:gwbench-local@langfuse-postgres:5432/postgres
+      SALT: gwbench-local-salt
+      ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      ORG_ID: gwbench-org
+      PROJECT_ID: gwbench-project
+      USER_EMAIL: gwbench@example.com
+      USER_PASSWORD: gwbench-local-password
+      INGESTION_MODE: ${LANGFUSE_INGESTION_MODE:-USAGE}
+      CONNECTION_NAME: mock
+      CONNECTION_BASE_URL: http://mock-llm:9000/v1
+      CONNECTION_CREDENTIAL: sk-mock-upstream # the mock accepts any key
+      # Must match TARGET_API_KEY in target.env.
+      GATEWAY_KEY: sk-lf-gwbench-gateway-key
+      PROJECT_PUBLIC_KEY: pk-lf-gwbench-local # LANGFUSE_INIT_PROJECT_PUBLIC_KEY on Web
+      PROJECT_SECRET_KEY: sk-lf-gwbench-local
+      READY_FILE: /tmp/setup-ready
+    volumes:
+      - ./gateways/langfuse/setup.mjs:/app/gwbench-setup/setup.mjs:ro
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f /tmp/setup-ready ]"]
+      interval: 2s
+      timeout: 2s
+      retries: 90
+    restart: "no"
+
+  langfuse-ai-gateway:
+    image: langfuse/ai-gateway:4.78.0
+    container_name: gwbench-langfuse-ai-gateway
+    hostname: langfuse-ai-gateway
+    networks:
+      - gwbench
+    cpus: 2
+    mem_limit: 2g
+    memswap_limit: 2g
+    # Setup finished = the key and connection exist, so the first request resolves.
+    depends_on:
+      langfuse-web:
+        condition: service_healthy
+      langfuse-setup:
+        condition: service_healthy
+      mock-llm:
+        condition: service_healthy
+    # Published on loopback for verify.sh only; k6 uses the network.
+    ports:
+      - "127.0.0.1:${LANGFUSE_GATEWAY_HOST_PORT:-18081}:8080"
+    environment:
+      # Web base URL. D3 measurements point it at a counting proxy instead.
+      LANGFUSE_AI_GATEWAY_WEB_URL: ${LANGFUSE_GATEWAY_WEB_URL:-http://langfuse-web:3000}
+      # Plain http, accepted only because this stays on the private Docker network.
+      LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL: "true"
+      LANGFUSE_AI_GATEWAY_SERVICE_KEY: gwbench-local-gateway-service-key # same value as on Web
+      # D2: allow-list for the mock host (also set on Web above).
+      LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: ${LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST:-mock-llm}
+      # warn: no line per request, like LITELLM_LOG=ERROR and Bifrost's error level.
+      LANGFUSE_LOG_LEVEL: ${LANGFUSE_GATEWAY_LOG_LEVEL:-warn}
+      # Admission control (tuning pass, D25). Each request reserves max request bytes + overhead
+      # from the memory budget, so budget / (max + overhead) bounds the requests in flight
+      # (1221381323 / 17 MiB = 68 at these defaults). The defaults are the gateway's own: 60 % of
+      # the 2 GiB cgroup limit minus 64 MiB, 16 MiB, 1 MiB.
+      LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES: ${LANGFUSE_AI_GATEWAY_MEMORY_BUDGET_BYTES:-1221381323}
+      LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES: ${LANGFUSE_AI_GATEWAY_MAX_REQUEST_BYTES:-16777216}
+      LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES: ${LANGFUSE_AI_GATEWAY_REQUEST_MEMORY_OVERHEAD_BYTES:-1048576}
+    healthcheck:
+      # Liveness, not /ready.
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 5s
+      start_period: 3s
+      retries: 40
+    restart: "no"
+
+volumes:
+  langfuse-postgres-data:
+    name: gwbench-langfuse-postgres-data
+  langfuse-clickhouse-data:
+    name: gwbench-langfuse-clickhouse-data
+  langfuse-minio-data:
+    name: gwbench-langfuse-minio-data
