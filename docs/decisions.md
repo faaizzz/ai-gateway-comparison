@@ -583,39 +583,44 @@ environment and in `compose.resolved.yml` of every run.
 
 | | idle (after setup) | minimal at 100 RPS | prod at 100 RPS |
 | --- | --- | --- | --- |
-| Gateway container | 3 MB, 0 % CPU | 7 % CPU, 5 MB peak | 8 % CPU, 25 MB peak |
-| Whole Langfuse stack, CPU (100 % = 1 core) | about 13 % | 46 % | 61 % |
-| Whole Langfuse stack, memory (sum of container peaks) | about 2.3 GB | 2.1 GB | 2.4 GB |
+| Gateway container | 3 MB, 0 % CPU | 7 % CPU, 5 MB peak | 8 % CPU, 18 MB peak |
+| Whole Langfuse stack, CPU (100 % = 1 core) | about 13 % | 48 % | 54 % |
+| Whole Langfuse stack, memory (sum of container peaks) | about 2.3 GB | 2.2 GB | 2.3 GB |
 
-Per container at 100 RPS (CPU mean over the step, memory peak): Web 28 to 33 % and 0.9 GB,
-ClickHouse 4 % and 0.75 to 0.86 GB, worker 3 % (minimal) and 12 % (prod) and 0.35 to 0.42 GB,
-MinIO 1 % and 70 to 80 MB, Postgres 1 % and 50 MB, Redis 2 % and 13 MB. The gateway itself is
-the smallest part of the stack. At 1000 RPS in prod the peaks are 3.2 GB in total (ClickHouse 1.2,
-Web 0.95, worker 0.5, gateway 0.29 GB), so the stack fits the 8 GB VM with the mock and k6.
+Per container at 100 RPS (CPU mean over the step, memory peak): Web 28 to 29 % and 0.85 to 0.87 GB,
+ClickHouse 4 % and 0.76 to 0.86 GB, worker 4 % (minimal) and 10 % (prod) and 0.37 to 0.39 GB,
+MinIO 1 % and 65 to 85 MB, Postgres 1 % and 50 MB, Redis 2 % and 13 MB. The gateway itself is
+the smallest part of the stack. At 1000 RPS in prod the peaks are 3.3 GB in total (ClickHouse 1.18,
+Web 0.98, worker 0.53, gateway 0.33 GB) and no container is near its limit except ClickHouse
+(1.5 GB), so the stack fits the 8 GB VM with the mock and k6.
 
 **Latency, short runs** (20 s per step after 5 s warm-up, one run each, so indicative; S1 direct at
-the same rates is 62.4, 62.1, 61.9 and 61.9 ms, D9). p50 of `http_req_duration` in ms, achieved rate
-in parentheses, Web CPU as % of one core over the step:
+the same rates is 62.4, 62.1, 61.9 and 61.9 ms, D9). p50 of `http_req_duration` in ms with p99 in
+parentheses, Web CPU as % of one core over the step. The 100 RPS runs are the committed evidence
+(minimal 64.8 / 72.2, prod 64.7 / 70.6); the rows below are one scratch ladder per profile, not
+committed (same practice as D14):
 
 | Rate | minimal p50 (p99) | Web CPU | prod p50 (p99) | Web CPU |
 | --- | --- | --- | --- | --- |
-| 100 | 64.8 (71.6) | 28 % | 64.8 (80.6) | 33 % |
-| 250 | 63.8 (81.3) | 48 % | 64.0 (110) | 54 % |
-| 500 | 63.0 (150) | 67 % | 63.3 (204) | 86 % |
-| 1000 | 63.3 (245), 992 achieved | 104 % | **148.5 (1180), 960 achieved** | 140 % |
+| 100 | 65.0 (77) | 34 % | 65.0 (81) | 34 % |
+| 250 | 63.8 (81) | 48 % | 63.9 (137) | 55 % |
+| 500 | 63.0 (150) | 67 % | 65.4 (561), 494 achieved | 101 % |
+| 1000 | 63.3 (245), 992 achieved | 104 % | 208.7 (3080), 911 achieved, 0.58 % errors | 138 % |
 
-The 100 RPS rows are the committed evidence; the ladder rows are a scratch run that is not committed
-(same practice as D14). The p50 is about 2 to 3 ms above the baseline up to 500 RPS in both
-profiles. The tail goes first (p99 150 to 200 ms at 500) and the stack saturates between 500 and 1000
-RPS in prod (p50 148 ms and 40 requests per second short at 1000) and shows its limit in minimal at
-1000 (p95 189 ms, 8 requests per second short). The limit looks like Web: it is one Node process whose
-CPU reading passes 100 % at 1000 RPS (prod), while the gateway container uses at most 53 % of its
+The p50 is 2 to 3 ms above the baseline while the stack keeps up. The tail goes first: p99 passes
+100 ms at 250 RPS (prod) and 500 RPS (minimal). The prod ladder was run twice (the first before
+the model price was added to the setup, D19): then 500 RPS held with p99 204 ms and at 1000 the
+stack reached 960 RPS with p50 148 ms and p99 1180 ms. So prod saturates somewhere between 250
+and 1000 RPS and the exact point moves between runs (the second run, with cost calculation on
+the worker, is worse at 500); minimal keeps its p50 to 1000 RPS with a tail that is already
+wide (p95 189 ms) and 8 RPS short. The limit looks like Web: it is one Node process whose CPU
+reading reaches 100 % at 500 to 1000 RPS, while the gateway container uses at most 53 % of its
 2 CPUs and the other containers are far from theirs. This is an inference from CPU readings, not a
-profile. ClickHouse and the worker add load in
-prod (traces) and make the tail worse there. By the D15 rule the prod step at 1000 counts as sustained on its rate alone (96 % of the target, above
-the 95 % line, no errors) although p50 is 2.4 times the baseline: the rule has no latency criterion,
-which story #8 may want. For story #8: a Web setting (more CPU or a second Web
-replica, `NODE_OPTIONS`) is where tuning would matter, and the ladder is meaningful here up to 1000.
+profile. By the D15 rule the first prod run's 1000 step counts as sustained on its rate alone (96 %
+of the target, above the 95 % line, no errors) although p50 is 2.4 times the baseline: the rule has
+no latency criterion, which story #8 may want. For story #8: a Web setting (more CPU or a second Web
+replica, `NODE_OPTIONS`) is where tuning would matter, repeats are needed because of the variation
+between runs, and the ladder is meaningful here up to 1000.
 
 **No overhead header.** The gateway's response headers are `langfuse-request-id`,
 `langfuse-trace-id`, `langfuse-observation-id`, `langfuse-organization-id`, `langfuse-project-id`,
