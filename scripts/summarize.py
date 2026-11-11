@@ -3,9 +3,10 @@
 
     scripts/summarize.py results/<date>/<target>/<profile>/<scenario>/run-1 [...]
 
-If the gateway reports its own overhead (LiteLLM: x-litellm-overhead-duration-ms, the
-k6 metric gateway_overhead_ms), a second table shows its p50/p95/p99 per step,
-labelled gateway-reported: it is a different quantity from the k6 latency above.
+If the gateway reports its own overhead (LiteLLM: x-litellm-overhead-duration-ms; Bifrost:
+k6 duration minus x-bifrost-upstream-latency-ms; both land in the k6 metric
+gateway_overhead_ms), a second table shows its p50/p95/p99 per step, labelled
+gateway-reported: it is a different quantity from the k6 latency above.
 Reads summary.json (the per-step sub-metrics written by k6/lib/arrival.js),
 metadata.json (the step plan) and resources.csv. Columns: target rate, achieved
 requests per second, p50/p95/p99 of http_req_duration in ms, failed request
@@ -89,7 +90,7 @@ def summarize(run_dir):
         if ov and ov.get("max", 0) > 0:
             rows.append((s["name"], ov))
     if rows:
-        print("gateway-reported overhead (ms, from the response header; not comparable to the k6 latency):")
+        print("gateway-reported overhead (ms, from the response headers; LiteLLM: its own header, Bifrost: k6 duration minus its upstream-latency header; not comparable to the k6 latency):")
         for name, ov in rows:
             print(f"{name:>8} {'':>7} {'':>9} {ov['med']:>8.2f} {ov['p(95)']:>8.2f} {ov['p(99)']:>8.2f} {ov['max']:>8.1f}")
     dropped = metric(summary, "dropped_iterations")

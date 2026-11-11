@@ -24,8 +24,9 @@ say so next to the number. Decisions that shaped the rules live in
    baseline.
 3. **Never subtract percentiles.** Percentiles do not subtract. Show the
    gateway and baseline distributions side by side. Use the gateway-reported
-   overhead when available (LiteLLM `x-litellm-overhead-duration-ms`), and
-   label it as gateway-reported.
+   overhead when available (LiteLLM `x-litellm-overhead-duration-ms`; Bifrost sends
+   only `x-bifrost-upstream-latency-ms`, so its figure is each request's k6
+   duration minus that header, see D13), and label it as gateway-reported.
 4. **Two profiles per gateway, never mixed in one table.**
    - `minimal`: no database, no callbacks, no spend tracking, no log store.
      For Bifrost the log store is explicitly off.
