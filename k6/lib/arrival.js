@@ -31,6 +31,8 @@ const SUB_METRICS = {
   http_req_failed: 'rate>=0',
   http_reqs: 'count>=0',
   checks: 'rate>=0',
+  // Gateway-reported overhead (k6/lib/chat.js); has samples only for gateways that send it.
+  gateway_overhead_ms: 'max>=0',
 };
 
 export function buildPlan({ defaultRates, defaultStepS = 60, defaultWarmupS = 15 }) {
