@@ -1,0 +1,58 @@
+time="2026-11-11T04:14:05Z" level=info msg="GWBENCH_PLAN {\"t0_ms\":1794370445691,\"rates\":[100],\"step_s\":20,\"warmup_s\":5,\"ramp_s\":1,\"total_s\":26,\"steps\":[{\"name\":\"warmup\",\"phase\":\"warmup\",\"rate\":100,\"fromS\":0,\"toS\":5},{\"name\":\"ramp\",\"phase\":\"ramp\",\"rate\":100,\"fromS\":5,\"toS\":6},{\"name\":\"r100\",\"phase\":\"measure\",\"rate\":100,\"fromS\":6,\"toS\":26}]}" source=console
+
+
+  █ THRESHOLDS 
+
+    checks{step:r100}
+    ✓ 'rate>=0' rate=100.00%
+
+    gateway_overhead_ms{step:r100}
+    ✓ 'max>=0' max=8.422625
+
+    http_req_duration{step:r100}
+    ✓ 'max>=0' max=81.01ms
+
+    http_req_failed{step:r100}
+    ✓ 'rate>=0' rate=0.00%
+
+    http_req_waiting{step:r100}
+    ✓ 'max>=0' max=80.9ms
+
+    http_reqs{step:r100}
+    ✓ 'count>=0' count=2001
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 5200    199.487803/s
+    checks_succeeded...: 100.00% 5200 out of 5200
+    checks_failed......: 0.00%   0 out of 5200
+
+    ✓ status is 200
+    ✓ has completion
+
+    CUSTOM
+    gateway_overhead_ms............: avg=1.626339 min=0.33075  med=1.625521 max=8.422625 p(90)=2.0805   p(95)=2.287729 p(99)=3.506829
+      { step:r100 }................: avg=1.627483 min=0.332291 med=1.615459 max=8.422625 p(90)=2.065709 p(95)=2.2685   p(99)=3.53975 
+
+    HTTP
+    http_req_duration..............: avg=63.79ms  min=60.86ms  med=63.7ms   max=81.01ms  p(90)=65.08ms  p(95)=65.49ms  p(99)=67.51ms 
+      { expected_response:true }...: avg=63.79ms  min=60.86ms  med=63.7ms   max=81.01ms  p(90)=65.08ms  p(95)=65.49ms  p(99)=67.51ms 
+      { step:r100 }................: avg=63.81ms  min=61.27ms  med=63.71ms  max=81.01ms  p(90)=65.08ms  p(95)=65.46ms  p(99)=67.97ms 
+    http_req_failed................: 0.00%  0 out of 2600
+      { step:r100 }................: 0.00%  0 out of 2001
+    http_reqs......................: 2600   99.743902/s
+      { step:r100 }................: 2001   76.764441/s
+
+    EXECUTION
+    iteration_duration.............: avg=64.4ms   min=61ms     med=64.31ms  max=81.49ms  p(90)=65.82ms  p(95)=66.24ms  p(99)=68.33ms 
+    iterations.....................: 2600   99.743902/s
+    vus............................: 6      min=6         max=7 
+    vus_max........................: 25     min=25        max=25
+
+    NETWORK
+    data_received..................: 9.0 MB 344 kB/s
+    data_sent......................: 770 kB 30 kB/s
+
+
+
